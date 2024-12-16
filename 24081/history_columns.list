@@ -1,0 +1,27 @@
+model_number
+num_zones
+log_dt
+
+star_mass
+star_age
+photosphere_r
+luminosity
+effective_T
+
+nu_max
+delta_nu
+
+he_core_mass
+co_core_mass
+
+pp
+cno
+tri_alpha
+
+add_center_abundances
+add_surface_abundances
+
+elapsed_time
+
+mixing_regions 30
+burning_regions 30

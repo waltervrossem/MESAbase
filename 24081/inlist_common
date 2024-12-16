@@ -1,0 +1,82 @@
+&star_job
+    relax_tau_factor = .true.
+    relax_to_this_tau_factor = 1d-3
+    create_pre_main_sequence_model = .true.
+    pre_ms_relax_num_steps = 100
+    change_net = .true.
+    new_net_name = 'pp_and_cno_extras.net'
+    profile_columns_file = 'profile_columns.list'
+    history_columns_file = 'history_columns.list'
+    pgstar_flag = .false.
+
+    ! Add Imbriani 14N(p,g)15O
+    num_special_rate_factors = 1
+    reaction_for_special_factor(1) = 'r_n14_pg_o15'
+    filename_of_special_rate(1) = 'rates_tables/r_n14_pg_o15_im05.txt'
+
+    rates_cache_dir = './cache/rates_cache'
+!    eosDT_cache_dir = './cache/eosDT_cache'
+!    kap_cache_dir = './cache/kap_cache'
+/ ! end of star_job namelist
+
+&kap
+    cubic_interpolation_in_X = .true.
+    cubic_interpolation_in_Z = .true.
+    use_Type2_opacities = .true.
+/ ! end of kap namelist
+
+&controls
+    initial_mass = 1d0
+    atm_option = 'T_tau'
+    atm_T_tau_relation = 'Trampedach_solar'
+    atm_T_tau_opacity = 'varying'
+    use_T_tau_gradr_factor = .true.
+    history_interval = 1
+    write_profiles_flag = .true.
+    profile_interval = 100000
+    photo_interval = 500
+    photo_digits = 5
+    mesh_delta_coeff = 1
+    varcontrol_target = 1d-4
+    max_dq = 1d-3
+    min_dq_for_xa = 1d-4
+    convective_bdy_weight = 20
+    convective_bdy_dq_limit = 3d-05
+    convective_bdy_min_dt_yrs = 1d-3
+    timestep_dt_factor = 0.5d0
+    delta_lg_XH_cntr_min = -6
+    delta_lg_XH_cntr_max = 0
+    delta_lg_XH_cntr_limit = 0.005d0
+    delta_lg_XH_cntr_hard_limit = 0.01d0
+    T_mix_limit = 1d4
+
+    MLT_option = 'Cox'
+
+    use_Ledoux_criterion = .true.
+    do_conv_premix = .true.
+    do_premix_heating = .true.
+    conv_premix_avoid_increase = .true.
+
+    overshoot_scheme(1) = 'exponential'
+    overshoot_zone_type(1) = 'nonburn'
+    overshoot_zone_loc(1) = 'shell'
+    overshoot_bdy_loc(1) = 'bottom'
+    overshoot_f(1) = 0.021d0
+    overshoot_f0(1) = 0.001d0
+
+    overshoot_scheme(2) = 'exponential'
+    overshoot_zone_type(2) = 'burn_H'
+    overshoot_zone_loc(2) = 'core'
+    overshoot_bdy_loc(2) = 'top'
+    overshoot_f(2) = 0.0175d0
+    overshoot_f0(2) = 0.001d0
+
+    do_element_diffusion = .true.
+    do_diffusion_heating = .true.
+    diffusion_use_isolve = .true.
+
+    ! For coupling calculations
+    x_logical_ctrl(1) = .false.  ! Write remeshing data.
+    x_logical_ctrl(2) = .false.  ! Verbose coupling
+    x_integer_ctrl(1) = 1  ! Number of Delta nu steps to calculate coupling around nu_max
+/ ! end of controls namelist

@@ -1,0 +1,18 @@
+!Created using wsssss.create_grid module.
+
+&star_job
+    initial_zfracs = 3 ! gs98
+/ ! end of star_job namelist
+
+&kap
+    kap_file_prefix = 'gs98'
+    kap_lowT_prefix = 'lowT_fa05_gs98'
+    kap_CO_prefix = 'gs98_co'
+    Zbase = 0.018866
+/ ! end of kap namelist
+
+&controls
+    mixing_length_alpha = 1.983412
+    initial_y = 0.272480
+    initial_z = 0.018866
+/ ! end of controls namelist
