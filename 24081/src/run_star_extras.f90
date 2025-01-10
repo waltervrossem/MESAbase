@@ -19,568 +19,584 @@
 !   foundation, inc., 59 temple place, suite 330, boston, ma 02111-1307 usa
 !
 ! ***********************************************************************
- 
-      module run_star_extras
 
-      use star_lib
-      use star_def
-      use const_def
-      use math_lib
-      use rates_def
-      use chem_def
+module run_star_extras
 
-      implicit none
+   use star_lib
+   use star_def
+   use const_def
+   use math_lib
+   use rates_def
+   use chem_def
 
-      ! s% xtra
+   implicit none
 
-      integer, parameter :: i_max_dq = 1
-      integer, parameter :: i_mesh_delta_coeff = 2
-      integer, parameter :: i_varcontrol_target = 3
-      integer, parameter :: i_convective_bdy_weight = 4
+   ! s% xtra
 
-      ! s% x_ctrl
+   integer, parameter :: i_max_dq = 1
+   integer, parameter :: i_mesh_delta_coeff = 2
+   integer, parameter :: i_varcontrol_target = 3
+   integer, parameter :: i_convective_bdy_weight = 4
+
+   ! s% x_ctrl
+   integer, parameter :: i_aovhe_mod_pen_conv = 1
+   integer, parameter :: i_aovhe_mod_pen_conv_exp = 2
+
+   integer, parameter :: i_save_dT = 5
+   integer, parameter :: i_save_dlogL = 6
+   integer, parameter :: i_save_dHc = 7
+   integer, parameter :: i_save_dlogHc = 8
+   integer, parameter :: i_save_dHec = 9
+   integer, parameter :: i_save_dlogHec = 10
+
+   ! s% x_integer_ctrl
+   integer, parameter :: i_num_deltanu_for_q = 1
+
+   ! s% x_logical_ctrl
+   integer, parameter :: i_save_mesh = 1
+   integer, parameter :: i_verbose_coupling = 2
+
+   ! For saving routine
+   real(dp) :: prev_Teff, prev_L, prev_Hc, prev_Hec
+   logical :: first_step = .true.
+
+   ! these routines are called by the standard run_star check_model
+contains
+
+   subroutine extras_controls(id, ierr)
+      integer, intent(in) :: id
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      ! this is the place to set any procedure pointers you want to change
+      ! e.g., other_wind, other_mixing, other_energy  (see star_data.inc)
 
 
-      ! s% x_integer_ctrl
-      integer, parameter :: i_num_deltanu_for_q = 1
+      ! the extras functions in this file will not be called
+      ! unless you set their function pointers as done below.
+      ! otherwise we use a null_ version which does nothing (except warn).
 
-      ! s% x_logical_ctrl
-      integer, parameter :: i_save_mesh = 1
-      integer, parameter :: i_verbose_coupling = 2
+      s% extras_startup => extras_startup
+      s% extras_start_step => extras_start_step
+      s% extras_check_model => extras_check_model
+      s% extras_finish_step => extras_finish_step
+      s% extras_after_evolve => extras_after_evolve
+      s% how_many_extra_history_columns => how_many_extra_history_columns
+      s% data_for_extra_history_columns => data_for_extra_history_columns
+      s% how_many_extra_profile_columns => how_many_extra_profile_columns
+      s% data_for_extra_profile_columns => data_for_extra_profile_columns
 
-      ! these routines are called by the standard run_star check_model
-      contains
-      
-      subroutine extras_controls(id, ierr)
-         integer, intent(in) :: id
-         integer, intent(out) :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
+      s% how_many_extra_history_header_items => how_many_extra_history_header_items
+      s% data_for_extra_history_header_items => data_for_extra_history_header_items
+      s% how_many_extra_profile_header_items => how_many_extra_profile_header_items
+      s% data_for_extra_profile_header_items => data_for_extra_profile_header_items
 
-         ! this is the place to set any procedure pointers you want to change
-         ! e.g., other_wind, other_mixing, other_energy  (see star_data.inc)
+      s% other_D_mix => pen_overshoot
+
+      ! Remember these quantities for after early PMS
+      s% xtra(i_max_dq) = s% max_dq
+      s% xtra(i_mesh_delta_coeff) = s% mesh_delta_coeff
+      s% xtra(i_varcontrol_target) = s% varcontrol_target
+      s% xtra(i_convective_bdy_weight) = s% convective_bdy_weight
+      if ((s% star_age < 1d5) .and. (s% center_h1 > 0.6)) then  ! Only do for PMS
+         s% max_dq = 1d-2
+         s% mesh_delta_coeff = 2.0
+         s% varcontrol_target = 1d-3
+         s% convective_bdy_weight = 0
+      end if
+   end subroutine extras_controls
 
 
-         ! the extras functions in this file will not be called
-         ! unless you set their function pointers as done below.
-         ! otherwise we use a null_ version which does nothing (except warn).
+   subroutine extras_startup(id, restart, ierr)
+      integer, intent(in) :: id
+      logical, intent(in) :: restart
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+   end subroutine extras_startup
 
-         s% extras_startup => extras_startup
-         s% extras_start_step => extras_start_step
-         s% extras_check_model => extras_check_model
-         s% extras_finish_step => extras_finish_step
-         s% extras_after_evolve => extras_after_evolve
-         s% how_many_extra_history_columns => how_many_extra_history_columns
-         s% data_for_extra_history_columns => data_for_extra_history_columns
-         s% how_many_extra_profile_columns => how_many_extra_profile_columns
-         s% data_for_extra_profile_columns => data_for_extra_profile_columns
 
-         s% how_many_extra_history_header_items => how_many_extra_history_header_items
-         s% data_for_extra_history_header_items => data_for_extra_history_header_items
-         s% how_many_extra_profile_header_items => how_many_extra_profile_header_items
-         s% data_for_extra_profile_header_items => data_for_extra_profile_header_items
+   integer function extras_start_step(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      extras_start_step = 0
 
-         ! Remember these quantities for after early PMS
-         s% xtra(i_max_dq) = s% max_dq
-         s% xtra(i_mesh_delta_coeff) = s% mesh_delta_coeff
-         s% xtra(i_varcontrol_target) = s% varcontrol_target
-         s% xtra(i_convective_bdy_weight) = s% convective_bdy_weight
-         if ((s% star_age < 1d5) .and. (s% center_h1 > 0.6)) then  ! Only do for PMS
-            s% max_dq = 1d-2
-            s% mesh_delta_coeff = 2.0
-            s% varcontrol_target = 1d-3
-            s% convective_bdy_weight = 0
+      ! Reset back to inlist values
+      if (s% star_age > 5d4) then
+         s% max_dq = s% xtra(i_max_dq)
+         s% mesh_delta_coeff = s% xtra(i_mesh_delta_coeff)
+         s% varcontrol_target = s% xtra(i_varcontrol_target)
+      end if
+      if (s% star_age > 1d5) then
+         s% convective_bdy_weight = s% xtra(i_convective_bdy_weight)
+      end if
+   end function extras_start_step
+
+
+   ! returns either keep_going, retry, or terminate.
+   integer function extras_check_model(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      extras_check_model = keep_going
+
+      ! if you want to check multiple conditions, it can be useful
+      ! to set a different termination code depending on which
+      ! condition was triggered.  MESA provides 9 customizeable
+      ! termination codes, named t_xtra1 .. t_xtra9.  You can
+      ! customize the messages that will be printed upon exit by
+      ! setting the corresponding termination_code_str value.
+      ! termination_code_str(t_xtra1) = 'my termination condition'
+
+      ! by default, indicate where (in the code) MESA terminated
+      if (extras_check_model == terminate) s% termination_code = t_extras_check_model
+   end function extras_check_model
+
+
+   integer function how_many_extra_history_columns(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      if (s% x_integer_ctrl(i_num_deltanu_for_q) <= 0) then
+         how_many_extra_history_columns = 32 + 2 + 14
+      else
+         how_many_extra_history_columns = 32 + s% x_integer_ctrl(i_num_deltanu_for_q) * 2 * 6 + 2 + 14
+      end if
+   end function how_many_extra_history_columns
+
+
+   subroutine data_for_extra_history_columns(id, n, names, vals, ierr)
+      integer, intent(in) :: id, n
+      character (len = maxlen_history_column_name) :: names(n)
+      real(dp) :: vals(n)
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+
+      integer :: k, k2, k3, max_eps_h_k
+      character (len = 1) :: pm
+      real(dp) :: nu_q
+      real(dp) :: out(30, 2)
+      integer :: out_int(2, 2)
+
+      integer :: i, k_l
+      real(dp) :: r_bCZ, m_bCZ, alfa, beta
+
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      k = 1
+      ! Calculate bottom of conv envelope
+      max_eps_h_k = maxloc(s% eps_nuc_categories(ipp, 1:s% nz) + s% eps_nuc_categories(icno, 1:s% nz), 1)
+      r_bCZ = -1d99
+      m_bCZ = -1d99
+      do i = max_eps_h_k, 2, -1
+         if ((s% gradr(i) < s% gradr(i - 1)) .and. (s% gradr(i - 1) > s% grada(i - 1))) then  ! botCZ between i and i-1
+            alfa = (s% gradr(i) - s% grada(i)) / ((s% gradr(i) - s% grada(i)) - (s% gradr(i - 1) - s% grada(i - 1)))
+            beta = 1 - alfa
+            r_bCZ = (beta * s% r(i) + alfa * s% r(i - 1)) / rsun
+            m_bCZ = (beta * s% m(i) + alfa * s% m(i - 1)) / msun
+            exit
          end if
-      end subroutine extras_controls
+      end do
+      names(k) = 'r_botCZ'
+      vals(k) = r_bCZ
+      k = k + 1
+      names(k) = 'm_botCZ'
+      vals(k) = m_bCZ
+      k = k + 1
 
+      ! Calc stuff for dq/dnu
+      if (s% x_integer_ctrl(i_num_deltanu_for_q) >= 0) then
+         do k2 = 1, s% x_integer_ctrl(i_num_deltanu_for_q)
+            do k3 = 1, 2
+               if (k3 == 1) then
+                  pm = 'p'
+                  nu_q = s%nu_max + k2 * s%delta_nu
+               else
+                  pm = 'm'
+                  nu_q = s%nu_max - k2 * s%delta_nu
+               end if
 
-      subroutine extras_startup(id, restart, ierr)
-         integer, intent(in) :: id
-         logical, intent(in) :: restart
-         integer, intent(out) :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-      end subroutine extras_startup
-
-
-      integer function extras_start_step(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         extras_start_step = 0
-
-         ! Reset back to inlist values
-         if (s% star_age > 5d4) then
-            s% max_dq = s% xtra(i_max_dq)
-            s% mesh_delta_coeff = s% xtra(i_mesh_delta_coeff)
-            s% varcontrol_target = s% xtra(i_varcontrol_target)
-         end if
-         if (s% star_age > 1d5) then
-            s% convective_bdy_weight = s% xtra(i_convective_bdy_weight)
-         end if
-      end function extras_start_step
-
-
-      ! returns either keep_going, retry, or terminate.
-      integer function extras_check_model(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         extras_check_model = keep_going
-
-         ! if you want to check multiple conditions, it can be useful
-         ! to set a different termination code depending on which
-         ! condition was triggered.  MESA provides 9 customizeable
-         ! termination codes, named t_xtra1 .. t_xtra9.  You can
-         ! customize the messages that will be printed upon exit by
-         ! setting the corresponding termination_code_str value.
-         ! termination_code_str(t_xtra1) = 'my termination condition'
-
-         ! by default, indicate where (in the code) MESA terminated
-         if (extras_check_model == terminate) s% termination_code = t_extras_check_model
-      end function extras_check_model
-
-
-      integer function how_many_extra_history_columns(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-
-         if (s% x_integer_ctrl(i_num_deltanu_for_q) <= 0) then
-            how_many_extra_history_columns = 32 + 2 + 14
-         else
-            how_many_extra_history_columns = 32 + s% x_integer_ctrl(i_num_deltanu_for_q) * 2 * 6 + 2 + 14
-         end if
-      end function how_many_extra_history_columns
-
-
-      subroutine data_for_extra_history_columns(id, n, names, vals, ierr)
-         integer, intent(in) :: id, n
-         character (len=maxlen_history_column_name) :: names(n)
-         real(dp) :: vals(n)
-         integer, intent(out) :: ierr
-         type (star_info), pointer :: s
-
-         integer :: k, k2, k3, max_eps_h_k
-         character (len = 1) :: pm
-         real(dp) :: nu_q
-         real(dp) :: out(30, 2)
-         integer :: out_int(2, 2)
-
-         integer :: i, k_l
-         real(dp) :: r_bCZ, m_bCZ, alfa, beta
-
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-
-         k = 1
-         ! Calculate bottom of conv envelope
-         max_eps_h_k = maxloc(s% eps_nuc_categories(ipp, 1:s% nz) + s% eps_nuc_categories(icno, 1:s% nz), 1)
-         r_bCZ = -1d99
-         m_bCZ = -1d99
-         do i = max_eps_h_k, 2, -1
-            if ((s% gradr(i) < s% gradr(i - 1)) .and. (s% gradr(i - 1) > s% grada(i - 1))) then  ! botCZ between i and i-1
-               alfa = (s% gradr(i) - s% grada(i)) / ((s% gradr(i) - s% grada(i)) - (s% gradr(i - 1) - s% grada(i - 1)))
-               beta = 1 - alfa
-               r_bCZ = (beta * s% r(i) + alfa * s% r(i - 1)) / rsun
-               m_bCZ = (beta * s% m(i) + alfa * s% m(i - 1)) / msun
-               exit
-            end if
-         end do
-         names(k) = 'r_botCZ'
-         vals(k) = r_bCZ
-         k = k + 1
-         names(k) = 'm_botCZ'
-         vals(k) = m_bCZ
-         k = k + 1
-
-         ! Calc stuff for dq/dnu
-         if (s% x_integer_ctrl(i_num_deltanu_for_q) >= 0) then
-            do k2 = 1, s% x_integer_ctrl(i_num_deltanu_for_q)
-               do k3 = 1, 2
-                  if (k3 == 1) then
-                     pm = 'p'
-                     nu_q = s%nu_max + k2 * s%delta_nu
-                  else
-                     pm = 'm'
-                     nu_q = s%nu_max - k2 * s%delta_nu
-                  end if
-
-                  call do_strong_coupling(id, nu_q, out, out_int)
-                  write(names(k), '(A, I2.2)') 'r1_nu_' // pm, k2
-                  vals(k) = out(1, 1)
-                  k = k + 1
-                  write(names(k), '(A, I2.2)') 'r2_nu_' // pm, k2
-                  vals(k) = out(2, 1)
-                  k = k + 1
-                  write(names(k), '(A, I2.2)') 'm1_nu_' // pm, k2
-                  vals(k) = out(3, 1)
-                  k = k + 1
-                  write(names(k), '(A, I2.2)') 'm2_nu_' // pm, k2
-                  vals(k) = out(4, 1)
-                  k = k + 1
-                  write(names(k), '(A, I2.2)') 'q_nu_' // pm, k2
-                  vals(k) = out(5, 1)
-                  k = k + 1
-                  write(names(k), '(A, I2.2)') 'X_int_' // pm, k2
-                  vals(k) = out(6, 1)
-                  k = k + 1
-               end do
+               call do_strong_coupling(id, nu_q, out, out_int)
+               write(names(k), '(A, I2.2)') 'r1_nu_' // pm, k2
+               vals(k) = out(1, 1)
+               k = k + 1
+               write(names(k), '(A, I2.2)') 'r2_nu_' // pm, k2
+               vals(k) = out(2, 1)
+               k = k + 1
+               write(names(k), '(A, I2.2)') 'm1_nu_' // pm, k2
+               vals(k) = out(3, 1)
+               k = k + 1
+               write(names(k), '(A, I2.2)') 'm2_nu_' // pm, k2
+               vals(k) = out(4, 1)
+               k = k + 1
+               write(names(k), '(A, I2.2)') 'q_nu_' // pm, k2
+               vals(k) = out(5, 1)
+               k = k + 1
+               write(names(k), '(A, I2.2)') 'X_int_' // pm, k2
+               vals(k) = out(6, 1)
+               k = k + 1
             end do
-         end if
-
-         call do_strong_coupling(id, s% nu_max, out, out_int)
-
-         names(k) = 'r_1'
-         vals(k) = out(1, 1)  ! r_1/rsun
-         k = k + 1
-
-         names(k) = 'r_2'
-         vals(k) = out(2, 1)  ! r_2/rsun
-         k = k + 1
-
-         names(k) = 'm_1'
-         vals(k) = out(3, 1)  ! m_1
-         k = k + 1
-
-         names(k) = 'm_2'
-         vals(k) = out(4, 1)  ! m_2
-         k = k + 1
-
-         names(k) = 'coupling_strong'
-         vals(k) = out(5, 1)  ! q
-         k = k + 1
-
-         names(k) = 'X_integral_part'
-         vals(k) = out(6, 1)  ! PQ_integral / pi
-         k = k + 1
-
-         names(k) = 'X_gradient_part'
-         vals(k) = out(7, 1)  ! G2_div_2kappa_s0
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_ip'
-         vals(k) = out(8, 1)  ! dlnc_ds_s0_part_ip
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_Sl'
-         vals(k) = out(9, 1)  ! dlnc_ds_s0_part_Sl
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_N'
-         vals(k) = out(10, 1)  ! dlnc_ds_s0_part_N
-         k = k + 1
-
-         names(k) = 'kappa_s0'
-         vals(k) = out(11, 1)  ! kappa_s0
-         k = k + 1
-
-         names(k) = 'NuAJ_s0'
-         vals(k) = out(12, 1)  ! NuAJ_s0
-         k = k + 1
-
-         names(k) = 'dlnPds_s0'
-         vals(k) = out(13, 1)  ! dlnPds_s0
-         k = k + 1
-
-         names(k) = 'dlnQds_s0'
-         vals(k) = out(14, 1)  ! dlnQds_s0
-         k = k + 1
-
-         names(k) = 'k_P'
-         vals(k) = out_int(1, 1)  ! k_P
-         k_l = out_int(1, 1)
-         k = k + 1
-
-         names(k) = 'k_Q'
-         vals(k) = out_int(2, 1)  ! k_Q
-         k_l = max(k_l, out_int(2, 1))
-         k = k + 1
-
-         ! For second evan region
-         names(k) = 'r_1b'
-         vals(k) = out(1, 2)  ! r_1/rsun
-         k = k + 1
-
-         names(k) = 'r_2b'
-         vals(k) = out(2, 2)  ! r_2/rsun
-         k = k + 1
-
-         names(k) = 'm_1b'
-         vals(k) = out(3, 2)  ! m_1
-         k = k + 1
-
-         names(k) = 'm_2b'
-         vals(k) = out(4, 2)  ! m_2
-         k = k + 1
-
-         names(k) = 'coupling_strong_b'
-         vals(k) = out(5, 2)  ! q
-         k = k + 1
-
-         names(k) = 'X_integral_part_b'
-         vals(k) = out(6, 2)  ! PQ_integral / pi
-         k = k + 1
-
-         names(k) = 'X_gradient_part_b'
-         vals(k) = out(7, 2)  ! G2_div_2kappa_s0
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_ip_b'
-         vals(k) = out(8, 2)  ! dlnc_ds_s0_part_ip
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_Sl_b'
-         vals(k) = out(9, 2)  ! dlnc_ds_s0_part_Sl
-         k = k + 1
-
-         names(k) = 'dlnc_ds_s0_part_N_b'
-         vals(k) = out(10, 2)  ! dlnc_ds_s0_part_N
-         k = k + 1
-
-         names(k) = 'kappa_s0b'
-         vals(k) = out(11, 2)  ! kappa_s0
-         k = k + 1
-
-         names(k) = 'NuAJ_s0b'
-         vals(k) = out(12, 2)  ! NuAJ_s0
-         k = k + 1
-
-         names(k) = 'dlnPds_s0b'
-         vals(k) = out(13, 2)  ! dlnPds_s0
-         k = k + 1
-
-         names(k) = 'dlnQds_s0b'
-         vals(k) = out(14, 2)  ! dlnQds_s0
-         k = k + 1
-
-         names(k) = 'k_u2b'
-         vals(k) = out_int(1, 2)  ! k_u2
-         k = k + 1
-
-         names(k) = 'k_l2b'
-         vals(k) = out_int(2, 2)  ! k_l2
-         k = k + 1
-
-         k2 = 17
-         names(k) = 'a_0_grd_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_1_grd_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_2_grd_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_3_grd_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-
-         names(k) = 'a_0_grd_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_1_grd_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_2_grd_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_3_grd_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-
-         names(k) = 'a_0_int_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_1_int_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_2_int_P'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-
-         names(k) = 'a_0_int_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_1_int_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-         names(k) = 'a_2_int_Q'
-         vals(k) = out(k2, 1)
-         k = k + 1
-         k2 = k2 + 1
-
-      end subroutine data_for_extra_history_columns
-
-
-      integer function how_many_extra_profile_columns(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         how_many_extra_profile_columns = 5
-      end function how_many_extra_profile_columns
-
-
-      subroutine data_for_extra_profile_columns(id, n, nz, names, vals, ierr)
-         integer, intent(in) :: id, n, nz
-         character (len=maxlen_profile_column_name) :: names(n)
-         real(dp) :: vals(nz,n)
-         integer, intent(out) :: ierr
-         type (star_info), pointer :: s
-         integer :: k
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-
-         ! note: do NOT add the extra names to profile_columns.list
-         ! the profile_columns.list is only for the built-in profile column options.
-         ! it must not include the new column names you are adding here.
-
-         names(1) = 'q_J'
-         names(2) = 'q_A'
-         names(3) = 'q_Nu'
-         names(4) = 'q_P'
-         names(5) = 'q_Q'
-
-         !Have to repopulate xtra arrays
-         call calc_JANu(id)
-         call calc_PQ(id, (2d0*pi/1d6)*s% nu_max)
-
-         do k = 1, nz
-             vals(k,1) = s% xtra1_array(k)
-             vals(k,2) = s% xtra2_array(k)
-             vals(k,3) = s% xtra3_array(k)
-             vals(k,4) = s% xtra4_array(k)
-             vals(k,5) = s% xtra5_array(k)
          end do
+      end if
 
-      end subroutine data_for_extra_profile_columns
+      call do_strong_coupling(id, s% nu_max, out, out_int)
+
+      names(k) = 'r_1'
+      vals(k) = out(1, 1)  ! r_1/rsun
+      k = k + 1
+
+      names(k) = 'r_2'
+      vals(k) = out(2, 1)  ! r_2/rsun
+      k = k + 1
+
+      names(k) = 'm_1'
+      vals(k) = out(3, 1)  ! m_1
+      k = k + 1
+
+      names(k) = 'm_2'
+      vals(k) = out(4, 1)  ! m_2
+      k = k + 1
+
+      names(k) = 'coupling_strong'
+      vals(k) = out(5, 1)  ! q
+      k = k + 1
+
+      names(k) = 'X_integral_part'
+      vals(k) = out(6, 1)  ! PQ_integral / pi
+      k = k + 1
+
+      names(k) = 'X_gradient_part'
+      vals(k) = out(7, 1)  ! G2_div_2kappa_s0
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_ip'
+      vals(k) = out(8, 1)  ! dlnc_ds_s0_part_ip
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_Sl'
+      vals(k) = out(9, 1)  ! dlnc_ds_s0_part_Sl
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_N'
+      vals(k) = out(10, 1)  ! dlnc_ds_s0_part_N
+      k = k + 1
+
+      names(k) = 'kappa_s0'
+      vals(k) = out(11, 1)  ! kappa_s0
+      k = k + 1
+
+      names(k) = 'NuAJ_s0'
+      vals(k) = out(12, 1)  ! NuAJ_s0
+      k = k + 1
+
+      names(k) = 'dlnPds_s0'
+      vals(k) = out(13, 1)  ! dlnPds_s0
+      k = k + 1
+
+      names(k) = 'dlnQds_s0'
+      vals(k) = out(14, 1)  ! dlnQds_s0
+      k = k + 1
+
+      names(k) = 'k_P'
+      vals(k) = out_int(1, 1)  ! k_P
+      k_l = out_int(1, 1)
+      k = k + 1
+
+      names(k) = 'k_Q'
+      vals(k) = out_int(2, 1)  ! k_Q
+      k_l = max(k_l, out_int(2, 1))
+      k = k + 1
+
+      ! For second evan region
+      names(k) = 'r_1b'
+      vals(k) = out(1, 2)  ! r_1/rsun
+      k = k + 1
+
+      names(k) = 'r_2b'
+      vals(k) = out(2, 2)  ! r_2/rsun
+      k = k + 1
+
+      names(k) = 'm_1b'
+      vals(k) = out(3, 2)  ! m_1
+      k = k + 1
+
+      names(k) = 'm_2b'
+      vals(k) = out(4, 2)  ! m_2
+      k = k + 1
+
+      names(k) = 'coupling_strong_b'
+      vals(k) = out(5, 2)  ! q
+      k = k + 1
+
+      names(k) = 'X_integral_part_b'
+      vals(k) = out(6, 2)  ! PQ_integral / pi
+      k = k + 1
+
+      names(k) = 'X_gradient_part_b'
+      vals(k) = out(7, 2)  ! G2_div_2kappa_s0
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_ip_b'
+      vals(k) = out(8, 2)  ! dlnc_ds_s0_part_ip
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_Sl_b'
+      vals(k) = out(9, 2)  ! dlnc_ds_s0_part_Sl
+      k = k + 1
+
+      names(k) = 'dlnc_ds_s0_part_N_b'
+      vals(k) = out(10, 2)  ! dlnc_ds_s0_part_N
+      k = k + 1
+
+      names(k) = 'kappa_s0b'
+      vals(k) = out(11, 2)  ! kappa_s0
+      k = k + 1
+
+      names(k) = 'NuAJ_s0b'
+      vals(k) = out(12, 2)  ! NuAJ_s0
+      k = k + 1
+
+      names(k) = 'dlnPds_s0b'
+      vals(k) = out(13, 2)  ! dlnPds_s0
+      k = k + 1
+
+      names(k) = 'dlnQds_s0b'
+      vals(k) = out(14, 2)  ! dlnQds_s0
+      k = k + 1
+
+      names(k) = 'k_u2b'
+      vals(k) = out_int(1, 2)  ! k_u2
+      k = k + 1
+
+      names(k) = 'k_l2b'
+      vals(k) = out_int(2, 2)  ! k_l2
+      k = k + 1
+
+      k2 = 17
+      names(k) = 'a_0_grd_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_1_grd_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_2_grd_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_3_grd_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+
+      names(k) = 'a_0_grd_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_1_grd_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_2_grd_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_3_grd_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+
+      names(k) = 'a_0_int_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_1_int_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_2_int_P'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+
+      names(k) = 'a_0_int_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_1_int_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+      names(k) = 'a_2_int_Q'
+      vals(k) = out(k2, 1)
+      k = k + 1
+      k2 = k2 + 1
+
+   end subroutine data_for_extra_history_columns
 
 
-      integer function how_many_extra_history_header_items(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         how_many_extra_history_header_items = 0
-      end function how_many_extra_history_header_items
+   integer function how_many_extra_profile_columns(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      how_many_extra_profile_columns = 5
+   end function how_many_extra_profile_columns
 
 
-      subroutine data_for_extra_history_header_items(id, n, names, vals, ierr)
-         integer, intent(in) :: id, n
-         character (len=maxlen_history_column_name) :: names(n)
-         real(dp) :: vals(n)
-         type(star_info), pointer :: s
-         integer, intent(out) :: ierr
-         ierr = 0
-         call star_ptr(id,s,ierr)
-         if(ierr/=0) return
+   subroutine data_for_extra_profile_columns(id, n, nz, names, vals, ierr)
+      integer, intent(in) :: id, n, nz
+      character (len = maxlen_profile_column_name) :: names(n)
+      real(dp) :: vals(nz, n)
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+      integer :: k
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
 
-         ! here is an example for adding an extra history header item
-         ! also set how_many_extra_history_header_items
-         ! names(1) = 'mixing_length_alpha'
-         ! vals(1) = s% mixing_length_alpha
+      ! note: do NOT add the extra names to profile_columns.list
+      ! the profile_columns.list is only for the built-in profile column options.
+      ! it must not include the new column names you are adding here.
 
-      end subroutine data_for_extra_history_header_items
+      names(1) = 'q_J'
+      names(2) = 'q_A'
+      names(3) = 'q_Nu'
+      names(4) = 'q_P'
+      names(5) = 'q_Q'
 
+      !Have to repopulate xtra arrays
+      call calc_JANu(id)
+      call calc_PQ(id, (2d0 * pi / 1d6) * s% nu_max)
 
-      integer function how_many_extra_profile_header_items(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         how_many_extra_profile_header_items = 0
-      end function how_many_extra_profile_header_items
+      do k = 1, nz
+         vals(k, 1) = s% xtra1_array(k)
+         vals(k, 2) = s% xtra2_array(k)
+         vals(k, 3) = s% xtra3_array(k)
+         vals(k, 4) = s% xtra4_array(k)
+         vals(k, 5) = s% xtra5_array(k)
+      end do
 
-
-      subroutine data_for_extra_profile_header_items(id, n, names, vals, ierr)
-         integer, intent(in) :: id, n
-         character (len=maxlen_profile_column_name) :: names(n)
-         real(dp) :: vals(n)
-         type(star_info), pointer :: s
-         integer, intent(out) :: ierr
-         ierr = 0
-         call star_ptr(id,s,ierr)
-         if(ierr/=0) return
-
-         ! here is an example for adding an extra profile header item
-         ! also set how_many_extra_profile_header_items
-         ! names(1) = 'mixing_length_alpha'
-         ! vals(1) = s% mixing_length_alpha
-
-      end subroutine data_for_extra_profile_header_items
+   end subroutine data_for_extra_profile_columns
 
 
-      ! returns either keep_going or terminate.
-      ! note: cannot request retry; extras_check_model can do that.
-      integer function extras_finish_step(id)
-         integer, intent(in) :: id
-         integer :: ierr
-         type (star_info), pointer :: s
-         real(dp) :: nu_q
-         real(dp) :: out(30, 2)
-         integer :: out_int(2, 2)
-
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-         extras_finish_step = keep_going
-
-         ! to save a profile,
-            ! s% need_to_save_profiles_now = .true.
-         ! to update the star log,
-            ! s% need_to_update_history_now = .true.
-
-         ! see extras_check_model for information about custom termination codes
-         ! by default, indicate where (in the code) MESA terminated
-         if (extras_finish_step == terminate) s% termination_code = t_extras_finish_step
-         nu_q = s% nu_max
-         call do_strong_coupling(id, nu_q, out, out_int)
-      end function extras_finish_step
+   integer function how_many_extra_history_header_items(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      how_many_extra_history_header_items = 0
+   end function how_many_extra_history_header_items
 
 
-      subroutine extras_after_evolve(id, ierr)
-         integer, intent(in) :: id
-         integer, intent(out) :: ierr
-         type (star_info), pointer :: s
-         ierr = 0
-         call star_ptr(id, s, ierr)
-         if (ierr /= 0) return
-      end subroutine extras_after_evolve
+   subroutine data_for_extra_history_header_items(id, n, names, vals, ierr)
+      integer, intent(in) :: id, n
+      character (len = maxlen_history_column_name) :: names(n)
+      real(dp) :: vals(n)
+      type(star_info), pointer :: s
+      integer, intent(out) :: ierr
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if(ierr/=0) return
+
+      ! here is an example for adding an extra history header item
+      ! also set how_many_extra_history_header_items
+      ! names(1) = 'mixing_length_alpha'
+      ! vals(1) = s% mixing_length_alpha
+
+   end subroutine data_for_extra_history_header_items
+
+
+   integer function how_many_extra_profile_header_items(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      how_many_extra_profile_header_items = 0
+   end function how_many_extra_profile_header_items
+
+
+   subroutine data_for_extra_profile_header_items(id, n, names, vals, ierr)
+      integer, intent(in) :: id, n
+      character (len = maxlen_profile_column_name) :: names(n)
+      real(dp) :: vals(n)
+      type(star_info), pointer :: s
+      integer, intent(out) :: ierr
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if(ierr/=0) return
+
+      ! here is an example for adding an extra profile header item
+      ! also set how_many_extra_profile_header_items
+      ! names(1) = 'mixing_length_alpha'
+      ! vals(1) = s% mixing_length_alpha
+
+   end subroutine data_for_extra_profile_header_items
+
+
+   ! returns either keep_going or terminate.
+   ! note: cannot request retry; extras_check_model can do that.
+   integer function extras_finish_step(id)
+      integer, intent(in) :: id
+      integer :: ierr
+      type (star_info), pointer :: s
+      logical :: save_now
+
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+      extras_finish_step = keep_going
+
+      ! to save a profile,
+      ! s% need_to_save_profiles_now = .true.
+      ! to update the star log,
+      ! s% need_to_update_history_now = .true.
+
+      ! see extras_check_model for information about custom termination codes
+      ! by default, indicate where (in the code) MESA terminated
+      if (extras_finish_step == terminate) s% termination_code = t_extras_finish_step
+
+      call saving_routine(id, save_now, extras_finish_step)
+      if (save_now) then
+         s% need_to_save_profiles_now = .true.
+      end if
+
+   end function extras_finish_step
+
+
+   subroutine extras_after_evolve(id, ierr)
+      integer, intent(in) :: id
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+   end subroutine extras_after_evolve
 
    subroutine calc_JANu(id)
       integer, intent(in) :: id
@@ -854,7 +870,6 @@
       r_2 = -1d99
       m_1 = -1d99
       m_2 = -1d99
-
 
       if (k_P > 1) then
          if (main_evn_zone) then
@@ -2090,5 +2105,202 @@
 
    end subroutine do_strong_coupling
 
+   subroutine pen_overshoot(id, ierr)
+      integer, intent(in) :: id
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
 
-      end module run_star_extras
+      logical :: core_convective
+      integer :: k, k_conv, k_ovhe
+      real(dp) :: aovhe, f_aovhe, ovhe_r, soft_r, a_soft
+      real(dp) :: Ymin, Ymax
+
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      core_convective = (s%mixing_type(s%nz) == convective_mixing .and. s%mixing_type(s%nz - 1) == convective_mixing)
+      aovhe = s%x_ctrl(i_aovhe_mod_pen_conv)
+      a_soft = s%x_ctrl(i_aovhe_mod_pen_conv_exp)
+
+      ! Grow convective core as He depletes
+      if (s% x_logical_ctrl(5)) then
+         Ymin = 0.2d0
+         Ymax = 0.9d0
+         f_aovhe = (Ymax - s% center_he4) / (Ymax - Ymin)
+         f_aovhe = max(f_aovhe, 0d0)
+         f_aovhe = min(f_aovhe, 1d0)
+         aovhe = aovhe * f_aovhe
+      end if
+      a_soft = min(a_soft, aovhe)
+
+      if (core_convective .and. s% center_h1 < 1d-6 .and. s% center_he4 > 0) then
+         k_conv = s% conv_bdy_loc(1) + 1  ! top of convective core, inside convective zone
+         s% mixing_type(k_conv:s% nz) = convective_mixing
+         s% D_mix(k_conv:s% nz) = s% D_mix(k_conv:s% nz)
+
+         if (s% r(k_conv)<=s% scale_height(k_conv)) then
+            ovhe_r = min(s% r(k_conv) * 2, s% r(k_conv) + aovhe * s% scale_height(k_conv))
+            soft_r = min(s% r(k_conv) * 2, s% r(k_conv) + (aovhe - a_soft) * s% scale_height(k_conv))
+         else
+            ovhe_r = s% r(k_conv) + aovhe * s% scale_height(k_conv)
+            soft_r = s% r(k_conv) + (aovhe - a_soft) * s% scale_height(k_conv)
+         endif
+
+         k_ovhe = k_conv
+         do while (s% r(k_ovhe) <= ovhe_r)
+            k_ovhe = k_ovhe - 1
+         end do
+
+         if (k_ovhe < k_conv) then
+            s% mixing_type(k_ovhe:k_conv - 1) = overshoot_mixing
+            s% D_mix(k_ovhe:k_conv + 1) = s% D_mix(k_conv + 2)
+         end if
+
+         ! Soften end of overshooting
+         do k = k_ovhe, k_conv
+            if (s% r(k) < soft_r) then
+               cycle
+            end if
+            s% D_mix(k) = s% D_mix(k_conv) * 10**(log10(s% D_mix(k_conv) / s%overshoot_D_min) * (soft_r - s%r(k)) / a_soft)
+         end do
+
+         do k = k_ovhe, k_conv
+            s% conv_vel(k) = 3 * s% D_mix(k) / (s% alpha_mlt(k) * (s% scale_height(k - 1) + s% scale_height(k + 1)) / 2)
+         end do
+
+         call other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
+      end if
+
+   end subroutine pen_overshoot
+
+   ! From Michielsen 2021
+   subroutine other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
+      integer, intent(in) :: id
+      integer, intent(out) :: ierr
+      type(star_info), pointer :: s
+      real(dp) :: fraction, Peclet_number, conductivity, Hp       ! f is fraction to compose grad_T = f*grad_ad + (1-f)*grad_rad
+      integer :: k
+      logical, parameter :: DEBUG = .FALSE.
+
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      if (s%D_mix(1) .ne. s%D_mix(1)) return  ! To ignore iterations where Dmix and gradT are NaNs
+
+      if (s%num_conv_boundaries .lt. 1) then  ! Is zero at initialisation of the run
+         if (DEBUG) then
+            write(*, *) 'skip since there are no convective boundaries'
+         end if
+         return
+      endif
+
+      do k = s%nz, 1, -1
+         if (s%D_mix(k) .le. s% min_D_mix) exit
+
+         conductivity = 16._dp * boltz_sigma * s% T(k)**3._dp / (3._dp * s% opacity(k) * s% rho(k)**2._dp * s% cp(k))
+         call evaluate_Hp (s, k, s%r(k), Hp, ierr)
+         Peclet_number = s% conv_vel(k) * Hp * s% mixing_length_alpha / conductivity
+
+         if (Peclet_number .ge. 1d2) then
+            fraction = 1._dp
+         else if (Peclet_number .le. 1d-2) then
+            fraction = 0._dp
+         else
+            fraction = (LOG10(Peclet_number) + 2._dp) / 4._dp
+         end if
+
+         s% adjust_mlt_gradT_fraction(k) = fraction
+      end do
+
+   end subroutine other_adjust_mlt_gradT_fraction_Peclet
+
+   subroutine evaluate_Hp (s, k, r, Hp, ierr)
+      type(star_info), pointer :: s
+      integer, intent(in) :: k
+      real(dp), intent(in) :: r
+      real(dp), intent(out) :: Hp
+      integer, intent(out) :: ierr
+      real(dp) :: P, rho
+
+      ! Evaluate the pressure scale height Hp
+      ierr = 0
+
+      P = exp(s%lnPeos(k))
+      rho = exp(s%lnd(k))
+
+      ! Evaluate the pressure scale height
+      Hp = P / (rho * s%cgrav(k) * (s%M_center + s%xmstar * s%q(k)) / (r * r))
+
+      return
+   end subroutine evaluate_Hp
+
+   subroutine saving_routine(id, save_now, extras_finish_step)
+      integer, intent(in) :: id
+      logical, intent(out) :: save_now
+      integer, intent(inout) :: extras_finish_step
+      type(star_info), pointer :: s
+      integer :: ierr
+
+      real(dp) :: dT, dlogT, dlogL, dHc, dHec, dlogHc, dlogHec
+
+      ierr = 0
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      save_now = .false.
+
+      if (first_step) then
+         prev_Teff = s% Teff
+         prev_L = s% photosphere_L
+         prev_Hc = s% center_h1
+         prev_Hec = s% center_he4
+         first_step = .false.
+      end if
+
+      ! Skip if in PMS
+      if (s% power_h_burn / s% photosphere_L < 1 .and. s% center_h1 > 0.6) then
+         return
+      end if
+
+      dT = abs(s% Teff - prev_Teff)
+      dlogT = abs(log10(s% Teff / prev_Teff))
+      dlogL = abs(log10(s% photosphere_L / prev_L))
+      dHc = abs(s% center_h1 - prev_Hc)
+      dHec = abs(s% center_he4 - prev_Hec)
+      dlogHc = abs(log10(s% center_h1 / prev_Hc))
+      dlogHec = abs(log10(s% center_he4 / prev_Hec))
+
+      !if (s% x_ctrl(i_save_fixed_step_Xc) > 0d0 .and. s% center_h1 > 1d-6) then
+      !
+      if (s% x_ctrl(i_save_dT) < dT .and. s% x_ctrl(i_save_dT) > 0d0) then
+         save_now = .true.
+      else if (s% x_ctrl(i_save_dlogL) < dlogL .and. s% x_ctrl(i_save_dlogL) > 0d0) then
+         save_now = .true.
+      else if (s% x_ctrl(i_save_dHc) < dHc .and. s% x_ctrl(i_save_dHc) > 0d0) then
+         save_now = .true.
+      else if (s% x_ctrl(i_save_dHec) < dHec .and. s% x_ctrl(i_save_dHec) > 0d0) then
+         save_now  = .true.
+      else if (s% center_h1 < dHc .and. s% x_ctrl(i_save_dlogHc) > 0d0) then
+         if (s% x_ctrl(i_save_dlogHc) < dlogHc) then
+            save_now = .true.
+         end if
+      else if (s% center_he4 < dHec .and. s% x_ctrl(i_save_dlogHec) > 0d0) then
+         if (s% x_ctrl(i_save_dlogHec) < dlogHec) then
+            save_now = .true.
+         end if
+      else
+         save_now = .false.
+      end if
+
+      if (save_now) then
+         prev_Teff = s% Teff
+         prev_L = s% photosphere_L
+         prev_Hc = s% center_h1
+         prev_Hec = s% center_he4
+      end if
+
+   end subroutine saving_routine
+
+end module run_star_extras
