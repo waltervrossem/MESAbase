@@ -31,11 +31,16 @@
     atm_T_tau_relation = 'Trampedach_solar'
     atm_T_tau_opacity = 'varying'
     use_T_tau_gradr_factor = .true.
+
     history_interval = 1
     write_profiles_flag = .true.
     profile_interval = 100000
     photo_interval = 500
     photo_digits = 5
+
+    write_pulse_data_with_profile = .true.
+    pulse_data_format = 'GYRE'
+
     mesh_delta_coeff = 1
     varcontrol_target = 1d-4
     max_dq = 1d-3
@@ -43,11 +48,13 @@
     convective_bdy_weight = 20
     convective_bdy_dq_limit = 3d-05
     convective_bdy_min_dt_yrs = 1d-3
+
     timestep_dt_factor = 0.5d0
     delta_lg_XH_cntr_min = -6
     delta_lg_XH_cntr_max = 0
     delta_lg_XH_cntr_limit = 0.005d0
     delta_lg_XH_cntr_hard_limit = 0.01d0
+
     T_mix_limit = 1d4
 
     MLT_option = 'Cox'
@@ -78,5 +85,20 @@
     ! For coupling calculations
     x_logical_ctrl(1) = .false.  ! Write remeshing data.
     x_logical_ctrl(2) = .false.  ! Verbose coupling
+
     x_integer_ctrl(1) = 1  ! Number of Delta nu steps to calculate coupling around nu_max
+
+    ! For penetrative overshooting
+    use_other_D_mix = .true.
+    x_ctrl(1) = 0.5d0 ! CHeB overshooting
+    x_ctrl(2) = 0.01 ! CHeB overshooting exponential part (attached at end of constant Dmix part)
+
+    ! For saving routine, can turn off by setting to negative value.
+    ! Will not save profiles during PMS.
+    x_ctrl(5) = 150d0  ! delta T
+    x_ctrl(6) = 0.05d0 ! delta logL
+    x_ctrl(7) = 0.05d0 ! delta center_h1
+    x_ctrl(8) = 1d0    ! delta log center_h1 if center_h1 < delta center_h1
+    x_ctrl(9) = 0.05d0 ! delta center_he4
+    x_ctrl(10) = 1d0    ! delta log center_he4 if center_he4 < delta center_h1
 / ! end of controls namelist
