@@ -6,6 +6,7 @@ import numpy as np
 from wsssss.inlists import create_grid as cg
 from wsssss.inlists import inlists as inl
 
+grid_name = 'grid'
 grid = cg.MesaGrid(add_base_workdir=True, inlists_index=4)
 grid.add_dir('src')
 grid.add_file('history_columns.list')
@@ -35,4 +36,5 @@ grid.add_file('rate_list.txt')
 # Add custom options here:
 
 
-grid.create_grid('grid')
+grid.create_grid(grid_name)
+os.system(f'cp {__file__} {grid_name}/')
