@@ -46,8 +46,10 @@ module run_star_extras
    integer, parameter :: i_save_dlogL = 6
    integer, parameter :: i_save_dHc = 7
    integer, parameter :: i_save_dlogHc = 8
-   integer, parameter :: i_save_dHec = 9
-   integer, parameter :: i_save_dlogHec = 10
+   integer, parameter :: i_save_min_logHc = 9
+   integer, parameter :: i_save_dHec = 10
+   integer, parameter :: i_save_dlogHec = 11
+   integer, parameter :: i_save_min_logHec = 12
 
    ! s% x_integer_ctrl
    integer, parameter :: i_num_deltanu_for_q = 1
@@ -1122,7 +1124,9 @@ contains
          y(k) = cubic_PQ(x(k), a_int)
       end do
       call simpne(n, x, y, integ_approx)
-      write(*, *) PQ_integral, integ_approx
+      if (s% x_logical_ctrl(i_verbose_coupling)) then
+         write(*, *) PQ_integral, integ_approx
+      end if
 
       ! check if approx is close to actual values
       x(1:2) = 0d0
@@ -1144,7 +1148,9 @@ contains
       end do
       y(3) = sqrt(y(3)) / x(2)
       y(4) = sqrt(y(4)) / x(2)
-      write(*, *) 'mean abs% difference from poly', y(3), y(4)
+      if (s% x_logical_ctrl(i_verbose_coupling)) then
+         write(*, *) 'mean abs% difference from poly', y(3), y(4)
+      end if
 
       ! try to always use numerical integral
       if (((s% brunt_N2(k_u) <= 0d0) .or. (s% brunt_N2(k_l) <= 0d0)) .and. (n >= min_n)) then  ! part convective
@@ -1396,7 +1402,9 @@ contains
          k_P = k_l
          k_Q = k_u
       end if
-      write(*, *) 'model', s% model_number
+      if (s% x_logical_ctrl(i_verbose_coupling)) then
+         write(*, *) 'model', s% model_number
+      end if
       do j = 1, 2
 
          ! Avoid r_1 and r_2 as the couple points around them are very noisy due to approaching 0/0
@@ -1610,11 +1618,13 @@ contains
          if (info /= 0) stop 'lapack error'
 
          a_grd(j, 1:deg + 1) = b(1:deg + 1, 1)
-         write(*, *) 'dgels'
-         write(*, *) b(1:deg + 1, 1)
+         if (s% x_logical_ctrl(i_verbose_coupling)) then
+            write(*, *) 'dgels'
+            write(*, *) b(1:deg + 1, 1)
 
-         write(*, *) k_u, k_mid, k_l
-         write(*, *) s% model_number
+            write(*, *) k_u, k_mid, k_l
+            write(*, *) s% model_number
+         end if
       end do
 
    end subroutine calc_quadr_coeffs_grd
@@ -1698,9 +1708,10 @@ contains
 
 !     dlnPds_s0 = dPds_s0 / P_s0
 !     dlnQds_s0 = dQds_s0 / Q_s0
-!     write(*,*) P_s0, a_int(1,1)
-!     write(*,*) Q_s0, a_int(2,1)
-
+!     if (s% x_logical_ctrl(i_verbose_coupling)) then
+!        write(*,*) P_s0, a_int(1,1)
+!        write(*,*) Q_s0, a_int(2,1)
+!     end if
       ! if fitting to dP and dQ in gradient fit
       ! appears to be a little better than interpolation (for P_s0 and Q_s0)
 !      dssds_s0 = 2d0/s_0  ! d/ds ln (s+s0)/(s0-s) at s=0
@@ -1867,7 +1878,9 @@ contains
       if (dlnc_ds_s0_part_ip /= dlnc_ds_s0_part_ip) then  ! isnan check
          dlnc_ds_s0_part_ip = 0.25d0 * (dlnyPQds_s0 + dssds_s0)
       end if
-      write(*, *) 'dlncds_s0_part_ip = ', 0.25d0 * (dlnPds_s0 - dlnQds_s0 + dssds_s0), 0.25d0 * (dlnyPQds_s0 + dssds_s0)
+      if (s% x_logical_ctrl(i_verbose_coupling)) then
+         write(*, *) 'dlncds_s0_part_ip = ', 0.25d0 * (dlnPds_s0 - dlnQds_s0 + dssds_s0), 0.25d0 * (dlnyPQds_s0 + dssds_s0)
+      end if
       call calc_dlnc_ds_s0_part_ap(id, r_1, r_2, k_mid, dlnc_ds_s0_part_Sl, dlnc_ds_s0_part_N)
 
       !         use_approx = (s% power_he_burn <= 1d-9 .and. s% center_he4 >=0.95)
@@ -2272,8 +2285,6 @@ contains
       dlogHc = abs(log10(s% center_h1 / prev_Hc))
       dlogHec = abs(log10(s% center_he4 / prev_Hec))
 
-      !if (s% x_ctrl(i_save_fixed_step_Xc) > 0d0 .and. s% center_h1 > 1d-6) then
-      !
       if (s% x_ctrl(i_save_dT) < dT .and. s% x_ctrl(i_save_dT) > 0d0) then
          save_now = .true.
       else if (s% x_ctrl(i_save_dlogL) < dlogL .and. s% x_ctrl(i_save_dlogL) > 0d0) then
@@ -2282,11 +2293,13 @@ contains
          save_now = .true.
       else if (s% x_ctrl(i_save_dHec) < dHec .and. s% x_ctrl(i_save_dHec) > 0d0) then
          save_now  = .true.
-      else if (s% center_h1 < dHc .and. s% x_ctrl(i_save_dlogHc) > 0d0) then
+      else if (s% center_h1 < dHc .and. s% x_ctrl(i_save_dlogHc) > 0d0 .and. &
+         s% x_ctrl(i_save_min_logHc) < log10(s% center_h1)) then
          if (s% x_ctrl(i_save_dlogHc) < dlogHc) then
-            save_now = .true.
+         save_now = .true.
          end if
-      else if (s% center_he4 < dHec .and. s% x_ctrl(i_save_dlogHec) > 0d0) then
+      else if (s% center_he4 < dHec .and. s% x_ctrl(i_save_dlogHec) > 0d0 .and. &
+         s% x_ctrl(i_save_min_logHec) < log10(s% center_he4)) then
          if (s% x_ctrl(i_save_dlogHec) < dlogHec) then
             save_now = .true.
          end if

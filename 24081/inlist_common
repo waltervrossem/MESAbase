@@ -99,6 +99,8 @@
     x_ctrl(6) = 0.05d0 ! delta logL
     x_ctrl(7) = 0.05d0 ! delta center_h1
     x_ctrl(8) = 1d0    ! delta log center_h1 if center_h1 < delta center_h1
-    x_ctrl(9) = 0.05d0 ! delta center_he4
-    x_ctrl(10) = 1d0    ! delta log center_he4 if center_he4 < delta center_h1
+    x_ctrl(9) = -6d0   ! Min log center_h1 for saving profiles
+    x_ctrl(10) = 0.05d0 ! delta center_he4
+    x_ctrl(11) = 1d0    ! delta log center_he4 if center_he4 < delta center_h1
+    x_ctrl(12) = -10d0   ! Min log center_he4 for saving profiles
 / ! end of controls namelist
