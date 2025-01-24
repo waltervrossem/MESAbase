@@ -9,6 +9,9 @@
     history_columns_file = 'history_columns.list'
     pgstar_flag = .false.
 
+    write_profile_when_terminate = .true.
+    filename_for_profile_when_terminate = 'termination_profile.data'
+
     ! Add Imbriani 14N(p,g)15O
     num_special_rate_factors = 1
     reaction_for_special_factor(1) = 'r_n14_pg_o15'
@@ -34,9 +37,10 @@
 
     history_interval = 1
     write_profiles_flag = .true.
-    profile_interval = 100000
+    profile_interval = 100000  ! Use saving routine instead so set this high
     photo_interval = 500
     photo_digits = 5
+    max_num_profile_models = 300
 
     write_pulse_data_with_profile = .true.
     pulse_data_format = 'GYRE'
@@ -63,20 +67,39 @@
     do_conv_premix = .true.
     do_premix_heating = .true.
     conv_premix_avoid_increase = .true.
+    min_convective_gap = 0.05d0
+
+    thermohaline_option = 'Brown_Garaud_Stellmach_13'
+    thermohaline_coeff = 1d0
+    min_thermohaline_gap = 0.05d0
+    min_thermohaline_dropout = 0.1d0
+
+    ! For IGW mixing
+    use_other_D_mix = .true.
+    x_ctrl(15) = -1d0  ! IGW exponent
+    min_D_mix = 1d2
 
     overshoot_scheme(1) = 'exponential'
     overshoot_zone_type(1) = 'nonburn'
     overshoot_zone_loc(1) = 'shell'
     overshoot_bdy_loc(1) = 'bottom'
-    overshoot_f(1) = 0.021d0
-    overshoot_f0(1) = 0.001d0
+    overshoot_f(1) = 0.025d0
+    overshoot_f0(1) = 0.005d0
 
     overshoot_scheme(2) = 'exponential'
     overshoot_zone_type(2) = 'burn_H'
     overshoot_zone_loc(2) = 'core'
     overshoot_bdy_loc(2) = 'top'
-    overshoot_f(2) = 0.0175d0
-    overshoot_f0(2) = 0.001d0
+    overshoot_f(2) = 0.0180d0
+    overshoot_f0(2) = 0.005d0
+
+    overshoot_scheme(3) = 'other'
+    overshoot_zone_type(3) = 'burn_He'
+    overshoot_zone_loc(3) = 'core'
+    overshoot_bdy_loc(3) = 'top'
+    overshoot_f(3) = 0.505d0  ! step OS part a_ov
+    overshoot_f0(3) = 0.005d0  ! f0
+    x_ctrl(3) = 0.01  ! Exponential decay f_ov
 
     do_element_diffusion = .true.
     do_diffusion_heating = .true.
@@ -87,11 +110,6 @@
     x_logical_ctrl(2) = .false.  ! Verbose coupling
 
     x_integer_ctrl(1) = 1  ! Number of Delta nu steps to calculate coupling around nu_max
-
-    ! For penetrative overshooting
-    use_other_D_mix = .true.
-    x_ctrl(1) = 0.5d0 ! CHeB overshooting
-    x_ctrl(2) = 0.01 ! CHeB overshooting exponential part (attached at end of constant Dmix part)
 
     ! For saving routine, can turn off by setting to negative value.
     ! Will not save profiles during PMS.

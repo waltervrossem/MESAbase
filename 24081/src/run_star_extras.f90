@@ -32,11 +32,17 @@ module run_star_extras
    implicit none
 
    ! s% xtra
-
    integer, parameter :: i_max_dq = 1
    integer, parameter :: i_mesh_delta_coeff = 2
    integer, parameter :: i_varcontrol_target = 3
    integer, parameter :: i_convective_bdy_weight = 4
+
+   ! s% lxtra
+   integer, parameter :: i_use_dedt = 1
+   integer, parameter :: i_use_conv_premix = 2
+   integer, parameter :: i_use_gold_tolerances = 3
+
+   ! Extra controls options
 
    ! s% x_ctrl
    integer, parameter :: i_aovhe_mod_pen_conv = 1
@@ -51,12 +57,15 @@ module run_star_extras
    integer, parameter :: i_save_dlogHec = 11
    integer, parameter :: i_save_min_logHec = 12
 
+   integer, parameter :: i_IGW_exponent = 15
+
    ! s% x_integer_ctrl
    integer, parameter :: i_num_deltanu_for_q = 1
 
    ! s% x_logical_ctrl
    integer, parameter :: i_save_mesh = 1
    integer, parameter :: i_verbose_coupling = 2
+   integer, parameter :: i_grow_aovhe = 5
 
    ! For saving routine
    real(dp) :: prev_Teff, prev_L, prev_Hc, prev_Hec
@@ -96,7 +105,9 @@ contains
       s% how_many_extra_profile_header_items => how_many_extra_profile_header_items
       s% data_for_extra_profile_header_items => data_for_extra_profile_header_items
 
-      s% other_D_mix => pen_overshoot
+      s% other_D_mix => IGW_D_mix_rho
+      s% other_adjust_mlt_gradT_fraction => other_adjust_mlt_gradT_fraction_Peclet
+      s% other_overshooting_scheme => extended_convective_penetration
 
       ! Remember these quantities for after early PMS
       s% xtra(i_max_dq) = s% max_dq
@@ -109,6 +120,12 @@ contains
          s% varcontrol_target = 1d-3
          s% convective_bdy_weight = 0
       end if
+
+      ! To get through the helium flash turn off these options if they are used.
+      s% lxtra(i_use_dedt) = (s% energy_eqn_option == 'dedt')
+      s% lxtra(i_use_conv_premix) = s% do_conv_premix
+      s% lxtra(i_use_gold_tolerances) = s% use_gold_tolerances
+
    end subroutine extras_controls
 
 
@@ -153,6 +170,40 @@ contains
       call star_ptr(id, s, ierr)
       if (ierr /= 0) return
       extras_check_model = keep_going
+
+      ! To get through the helium flash if using the dedt energy eqn,
+      ! turn off dedt form of energy eqn if the time step becomes too small
+      s% lxtra(1:3) = .true.
+      if (s% power_he_burn > 3d8) then
+         if (s% lxtra(i_use_dedt)) then
+            write(*, *) 'dedt off', s% model_number
+            s% energy_eqn_option = 'eps_grav'
+         end if
+
+         if (s% lxtra(i_use_conv_premix)) then
+            write(*, *) 'cpm off', s% model_number
+            s% do_conv_premix = .false.
+         end if
+
+         if (s% lxtra(i_use_gold_tolerances)) then
+            write(*, *) 'gold off', s% model_number
+            s% use_gold_tolerances = .false.
+         end if
+      end if
+
+      if (s% power_he_burn < 2.5d8) then
+         if (s% lxtra(i_use_dedt)) then
+            s% energy_eqn_option = 'dedt'
+         end if
+
+         if (s% lxtra(i_use_conv_premix)) then
+            s% do_conv_premix = .true.
+         end if
+
+         if (s% lxtra(i_use_gold_tolerances)) then
+            s% use_gold_tolerances = .true.
+         end if
+      end if
 
       ! if you want to check multiple conditions, it can be useful
       ! to set a different termination code depending on which
@@ -587,7 +638,6 @@ contains
       if (save_now) then
          s% need_to_save_profiles_now = .true.
       end if
-
    end function extras_finish_step
 
 
@@ -829,7 +879,7 @@ contains
       ! Flash evanescent zone
       if (s% power_he_burn >= 1) then
          ! start from h-shell burning
-         do k = max_eps_h_k, s% nz
+         do k = max_eps_h_k, s% nz - 1  ! ignore central cell
             if ((s% xtra5_array(k) >= 0) .and. (s% xtra5_array(k - 1) < 0) .and. (k_u2 == 0)) then
                k_u2 = k
             end if
@@ -1121,6 +1171,7 @@ contains
       h = 2 * abs(s_0) / (n - 1)
       do k = 2, n - 1
          x(k) = x(k - 1) + h
+!         x(k) = -abs(s_0) * cos((k-1)/(n-1) * pi)  ! Chebyshev nodes of the second kind
          y(k) = cubic_PQ(x(k), a_int)
       end do
       call simpne(n, x, y, integ_approx)
@@ -2137,7 +2188,7 @@ contains
       a_soft = s%x_ctrl(i_aovhe_mod_pen_conv_exp)
 
       ! Grow convective core as He depletes
-      if (s% x_logical_ctrl(5)) then
+      if (s% x_logical_ctrl(i_grow_aovhe)) then
          Ymin = 0.2d0
          Ymax = 0.9d0
          f_aovhe = (Ymax - s% center_he4) / (Ymax - Ymin)
@@ -2146,6 +2197,9 @@ contains
          aovhe = aovhe * f_aovhe
       end if
       a_soft = min(a_soft, aovhe)
+      if (aovhe <= 0d0) then
+         return
+      end if
 
       if (core_convective .and. s% center_h1 < 1d-6 .and. s% center_he4 > 0) then
          k_conv = s% conv_bdy_loc(1) + 1  ! top of convective core, inside convective zone
@@ -2171,83 +2225,287 @@ contains
          end if
 
          ! Soften end of overshooting
-         do k = k_ovhe, k_conv
-            if (s% r(k) < soft_r) then
-               cycle
-            end if
-            s% D_mix(k) = s% D_mix(k_conv) * 10**(log10(s% D_mix(k_conv) / s%overshoot_D_min) * (soft_r - s%r(k)) / a_soft)
-         end do
+         if (a_soft > 0d0) then
+            do k = k_ovhe, k_conv-1
+               if (s% r(k) < soft_r) then
+                  cycle
+               end if
+               s% D_mix(k) = s% D_mix(k_conv) * 10**(log10(s% D_mix(k_conv) / s%overshoot_D_min) * (soft_r - s%r(k)) / a_soft)
+            end do
+         end if
 
          do k = k_ovhe, k_conv
             s% conv_vel(k) = 3 * s% D_mix(k) / (s% alpha_mlt(k) * (s% scale_height(k - 1) + s% scale_height(k + 1)) / 2)
          end do
-
-         call other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
+!         call other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
       end if
 
    end subroutine pen_overshoot
 
-   ! From Michielsen 2021
-   subroutine other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
+   ! Michielsen 2023
+   subroutine IGW_D_mix_rho(id, ierr)
       integer, intent(in) :: id
       integer, intent(out) :: ierr
-      type(star_info), pointer :: s
-      real(dp) :: fraction, Peclet_number, conductivity, Hp       ! f is fraction to compose grad_T = f*grad_ad + (1-f)*grad_rad
-      integer :: k
-      logical, parameter :: DEBUG = .FALSE.
-
+      type (star_info), pointer :: s
+      real(dp) :: rho_switch, D_ext, new_Dmix, igw_exponent
+      real(dp) :: f_IGW, f_flash, L_He_full_on, L_He_full_off, f_Mcc, M_cc_full_on, M_cc_full_off
+      integer :: k, k_DmixMin
       ierr = 0
       call star_ptr(id, s, ierr)
       if (ierr /= 0) return
 
-      if (s%D_mix(1) .ne. s%D_mix(1)) return  ! To ignore iterations where Dmix and gradT are NaNs
+      k_DmixMin = 0
 
-      if (s%num_conv_boundaries .lt. 1) then  ! Is zero at initialisation of the run
-         if (DEBUG) then
-            write(*, *) 'skip since there are no convective boundaries'
-         end if
+      ! Turn off IGW mixing during He flash
+      L_He_full_on = 7d0
+      L_He_full_off = 8d0
+      f_flash = min(1d0, max(0d0, (L_He_full_on - log10(s% power_he_burn))/(L_He_full_off - L_He_full_on)))
+
+      ! Turn off IGW for very small convective cores
+      M_cc_full_on = 0.05d0
+      M_cc_full_off = 0.025d0
+      f_Mcc = min(1d0, max(0d0, (M_cc_full_off - s% mass_conv_core)/(M_cc_full_off - M_cc_full_on)))
+
+      f_IGW = min(f_flash, f_Mcc)
+      if (f_IGW <= 0d0) then
          return
-      endif
+      end if
 
-      do k = s%nz, 1, -1
-         if (s%D_mix(k) .le. s% min_D_mix) exit
+      ! IGW profile will not be implemented if MESA is doing the startup of a run
+      if ((.not. s% doing_first_model_of_run) .and. (.not. s% doing_relax ) .and. (s% mixing_type(s%nz) .eq. 1)) then
+         !------- Determining position where to switch to IGW profile -------
+         ! Going from core towards the surface of the star/model, check when Dmix <= s% min_D_mix
+         ! and store the index at this position to be used for rescaling of the y-axis below
+         D_ext = s% min_D_mix
+         D_ext = D_ext * f_IGW
 
-         conductivity = 16._dp * boltz_sigma * s% T(k)**3._dp / (3._dp * s% opacity(k) * s% rho(k)**2._dp * s% cp(k))
-         call evaluate_Hp (s, k, s%r(k), Hp, ierr)
-         Peclet_number = s% conv_vel(k) * Hp * s% mixing_length_alpha / conductivity
-
-         if (Peclet_number .ge. 1d2) then
-            fraction = 1._dp
-         else if (Peclet_number .le. 1d-2) then
-            fraction = 0._dp
-         else
-            fraction = (LOG10(Peclet_number) + 2._dp) / 4._dp
+         if (s% center_h1 < 1d-9) then  ! Lower IGW mixing intensity during CHeB
+            D_ext = s% min_D_mix * 0.2d0
          end if
 
-         s% adjust_mlt_gradT_fraction(k) = fraction
-      end do
+         do k = s% nz, 1, -1
+             if (s% D_mix(k) <= D_ext) then
+                 k_DmixMin = k
+                 exit
+             end if
+         end do
+         !------------------------------------------------------------------
+         ! Rescaling along the y-axis of the Dmix profile according to the min_D_mix
+         igw_exponent = s% x_ctrl(i_IGW_exponent)
+         if (k_DmixMin > 0) then
+             rho_switch = s%Rho(k_DmixMin)**igw_exponent
+             do k = 1, k_DmixMin
+                 new_Dmix = s%Rho(k)**igw_exponent/rho_switch * D_ext
+                 if (new_Dmix > s% D_mix(k)) then
+                     s% D_mix(k) = new_Dmix
+                     s% mixing_type(k) = minimum_mixing
+                 end if
+             end do
+         end if
+      end if
+
+   end subroutine IGW_D_mix_rho
+
+
+   ! %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   ! Michielsen+ 2023
+   ! Adjust temperature gradient in overshoot zone to be adiabatic (Pe>1d2) or radiative (Pe<1d-2) based upon the Peclet number,
+   ! with a gradual transition between the two regimes.
+   ! Only works if conv_premix = .true. since the last iteration in a time step has NaNs in D_mix if conv_premix = .false.
+   ! The other hook on the next line needs to be included in run_star_extras to use this routine.
+   ! s% other_adjust_mlt_gradT_fraction => other_adjust_mlt_gradT_fraction_Peclet
+   subroutine other_adjust_mlt_gradT_fraction_Peclet(id, ierr)
+   integer, intent(in) :: id
+   integer, intent(out) :: ierr
+   type(star_info), pointer :: s
+   real(dp) :: fraction, Peclet_number, conductivity, Hp       ! f is fraction to compose grad_T = f*grad_ad + (1-f)*grad_rad
+   integer :: k
+   logical, parameter :: DEBUG = .FALSE.
+
+   ierr = 0
+   call star_ptr(id, s, ierr)
+   if (ierr /= 0) return
+
+   if (s%D_mix(1) .ne. s%D_mix(1)) return  ! To ignore iterations where Dmix and gradT are NaNs
+
+   if (s%num_conv_boundaries .lt. 1) then  ! Is zero at initialisation of the run
+   if (DEBUG) then
+      write(*,*) ' skip since there are no convective boundaries'
+   end if
+   return
+   endif
+
+   do k= s%nz, 1, -1
+      if (s%D_mix(k) <= s% min_D_mix) exit
+
+      conductivity = 16.0_dp * boltz_sigma * pow3(s% T(k)) / ( 3.0_dp * s% opacity(k) * pow2(s% rho(k)) * s% cp(k) )
+      Hp = s% Peos(k)/(s% rho(k)*s% grav(k)) ! Pressure scale height
+      Peclet_number = s% conv_vel(k) * Hp * s% mixing_length_alpha / conductivity
+
+      if (Peclet_number >= 100.0_dp) then
+          fraction = 1.0_dp
+      else if (Peclet_number .le. 0.01_dp) then
+          fraction = 0.0_dp
+      else
+          fraction = (safe_log10(Peclet_number)+2.0_dp)/4.0_dp
+      end if
+
+      s% adjust_mlt_gradT_fraction(k) = fraction
+   end do
 
    end subroutine other_adjust_mlt_gradT_fraction_Peclet
 
-   subroutine evaluate_Hp (s, k, r, Hp, ierr)
-      type(star_info), pointer :: s
-      integer, intent(in) :: k
-      real(dp), intent(in) :: r
-      real(dp), intent(out) :: Hp
-      integer, intent(out) :: ierr
-      real(dp) :: P, rho
+! %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   subroutine extended_convective_penetration(id, i, j, k_a, k_b, D, vc, ierr)
+   integer, intent(in) :: id, i, j
+   integer, intent(out) :: k_a, k_b
+   real(dp), intent(out), dimension(:) :: D, vc
+   integer, intent(out) :: ierr
+   type (star_info), pointer :: s
 
-      ! Evaluate the pressure scale height Hp
-      ierr = 0
+   logical, parameter :: DEBUG = .FALSE.
+   real(dp) :: f, f2, f0
+   real(dp) :: D0, Delta0
+   real(dp) :: w
+   real(dp) :: factor
+   real(dp) :: r_cb, Hp_cb
+   real(dp) :: r_ob, D_ob, vc_ob
+   logical  :: outward
+   integer  :: dk, k, k_ob
+   real(dp) :: r, dr, r_step
+   real(dp) :: Ymin, Ymax, f_aovhe
 
-      P = exp(s%lnPeos(k))
-      rho = exp(s%lnd(k))
+   ! Evaluate the overshoot diffusion coefficient D(k_a:k_b) and
+   ! mixing velocity vc(k_a:k_b) at the i'th convective boundary,
+   ! using the j'th set of overshoot parameters. The overshoot
+   ! follows the extended convective penetration scheme description by Mathias
+   ! Michielsen, "Probing the shape of the mixing profile and of the thermal
+   ! structure at the convective core boundary through asteroseismology",
+   ! A&A, 628, 76 (2019)
 
-      ! Evaluate the pressure scale height
-      Hp = P / (rho * s%cgrav(k) * (s%M_center + s%xmstar * s%q(k)) / (r * r))
+   ierr = 0
+   call star_ptr(id, s, ierr)
+   if (ierr /= 0) return
 
+   ! Extract parameters
+   f = s%overshoot_f(j)        ! extend of step function (a_ov)
+   f0 = s%overshoot_f0(j)
+   f2 = s%x_ctrl(j)            ! exponential decay (f_ov)
+
+   D0 = s%overshoot_D0(j)
+   Delta0 = s%overshoot_Delta0(j)
+
+   if (f < 0.0_dp .OR. f0 <= 0.0_dp .OR. f2 < 0.0_dp) then
+      write(*,*) 'ERROR: for extended convective penetration, must set f0 > 0, and f and f2 >= 0'
+      write(*,*) 'see description of overshooting in star/defaults/control.defaults'
+      ierr = -1
       return
-   end subroutine evaluate_Hp
+   end if
+
+   ! Grow convective core as He depletes
+   if (s% x_logical_ctrl(i_grow_aovhe)) then
+      if (s% overshoot_zone_type(j) == 'burn_He') then
+         if (s% overshoot_zone_loc(j) == 'core') then
+            if (s% overshoot_bdy_loc(j) == 'top') then
+               Ymin = 0.2d0
+               Ymax = 0.9d0
+               f_aovhe = (Ymax - s% center_he4) / (Ymax - Ymin)
+               f_aovhe = max(f_aovhe, 0d0)
+               f_aovhe = min(f_aovhe, 1d0)
+               f = f * f_aovhe
+               f0 = f0 * f_aovhe
+               f2 = f2 * f_aovhe
+            end if
+         end if
+      end if
+   end if
+
+   ! Apply mass limits
+   if (s%star_mass < s%overshoot_mass_full_on(j)) then
+      if (s%star_mass > s%overshoot_mass_full_off(j)) then
+         w = (s%star_mass - s%overshoot_mass_full_off(j)) / &
+         (s%overshoot_mass_full_on(j) - s%overshoot_mass_full_off(j))
+         factor = 0.5_dp*(1.0_dp - cospi(w))
+         f = f*factor
+         f0 = f0*factor
+         f2 = f2*factor
+      else
+         f = 0.0_dp
+         f0 = 0.0_dp
+         f2 = 0.0_dp
+      endif
+   endif
+
+   ! Evaluate convective boundary (_cb) parameters
+   call star_eval_conv_bdy_r(s, i, r_cb, ierr)
+   if (ierr /= 0) return
+
+   call star_eval_conv_bdy_Hp(s, i, Hp_cb, ierr)
+   if (ierr /= 0) return
+
+   ! Evaluate overshoot boundary (_ob) parameters
+   call star_eval_over_bdy_params(s, i, f0, k_ob, r_ob, D_ob, vc_ob, ierr)
+   if (ierr /= 0) return
+
+   ! Loop over cell faces, adding overshoot until D <= overshoot_D_min
+   outward = s%top_conv_bdy(i)
+
+   if (outward) then
+      k_a = k_ob
+      k_b = 1
+      dk = -1
+   else
+      k_a = k_ob+1
+      k_b = s%nz
+      dk = 1
+   endif
+
+   if (f > 0.0_dp) then
+      r_step = f*Hp_cb
+   else
+      r_step = 0.0_dp
+   endif
+
+   face_loop : do k = k_a, k_b, dk
+      ! Evaluate the extended convective penetration factor
+      r = s%r(k)
+      if (outward) then
+          dr = r - r_ob
+      else
+          dr = r_ob - r
+      endif
+
+      if (dr < r_step .AND. f > 0.0_dp) then  ! step factor
+          factor = 1.0_dp
+      else
+          if ( f2 > 0.0_dp) then                ! exponential factor
+              factor = exp(-2.0_dp*(dr-r_step)/(f2*Hp_cb))
+          else
+              factor = 0.0_dp
+          endif
+      endif
+
+      ! Store the diffusion coefficient and velocity
+      D(k) = (D0 + Delta0*D_ob)*factor
+      vc(k) = (D0/D_ob + Delta0)*vc_ob*factor
+
+      ! Check for early overshoot completion
+      if (D(k) < s%overshoot_D_min) then
+          k_b = k
+          exit face_loop
+      endif
+
+   end do face_loop
+
+   if (DEBUG) then
+      write(*,*) 'step exponential overshoot:'
+      write(*,*) '  k_a, k_b   =', k_a, k_b
+      write(*,*) '  r_a, r_b   =', s%r(k_a), s%r(k_b)
+      write(*,*) '  r_ob, r_cb =', r_ob, r_cb
+      write(*,*) '  Hp_cb      =', Hp_cb
+   end if
+
+   end subroutine extended_convective_penetration
 
    subroutine saving_routine(id, save_now, extras_finish_step)
       integer, intent(in) :: id
