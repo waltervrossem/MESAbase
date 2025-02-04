@@ -901,6 +901,11 @@ contains
          end do
       end if
 
+      ! if too close to center can't calculate gradients correctly
+      if (k_l2 >= s% nz - 10 ) then
+         k_l2 = 0
+      end if
+
    end subroutine get_evanescent_zones
 
 
@@ -2263,7 +2268,7 @@ contains
 
       ! Turn off IGW for very small convective cores
       M_cc_full_on = 0.05d0
-      M_cc_full_off = 0.025d0
+      M_cc_full_off = 0.01d0
       f_Mcc = min(1d0, max(0d0, (M_cc_full_off - s% mass_conv_core)/(M_cc_full_off - M_cc_full_on)))
 
       f_IGW = min(f_flash, f_Mcc)
@@ -2279,7 +2284,7 @@ contains
          D_ext = s% min_D_mix
          D_ext = D_ext * f_IGW
 
-         if (s% center_h1 < 1d-9) then  ! Lower IGW mixing intensity during CHeB
+         if (s% center_h1 < 1d-9) then  ! Lower IGW mixing intensity during CHeB, avoids breathing pulses
             D_ext = s% min_D_mix * 0.2d0
          end if
 
