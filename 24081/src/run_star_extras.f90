@@ -1164,7 +1164,7 @@ contains
          PQ_integral = -1d0
       end if
 
-      n = 21
+      n = 51
       allocate(x(n))
       allocate(y(n))
 
@@ -1173,10 +1173,8 @@ contains
       y(1) = 0d0
       y(n) = 0d0
 
-      h = 2 * abs(s_0) / (n - 1)
       do k = 2, n - 1
-         x(k) = x(k - 1) + h
-!         x(k) = -abs(s_0) * cos((k-1)/(n-1) * pi)  ! Chebyshev nodes of the second kind
+         x(k) = -abs(s_0) * cos((k-1d0)/(n-1d0) * pi)  ! Chebyshev nodes of the second kind
          y(k) = cubic_PQ(x(k), a_int)
       end do
       call simpne(n, x, y, integ_approx)
@@ -1212,6 +1210,8 @@ contains
       if (((s% brunt_N2(k_u) <= 0d0) .or. (s% brunt_N2(k_l) <= 0d0)) .and. (n >= min_n)) then  ! part convective
          PQ_integral = PQ_integral
       else if ((n >= min_n) .and. max(y(3), y(4)) > 5d-2) then  ! bad fit
+         PQ_integral = PQ_integral
+      else if (.not. (integ_approx == integ_approx)) then  ! check for nan
          PQ_integral = PQ_integral
       else
          PQ_integral = integ_approx
