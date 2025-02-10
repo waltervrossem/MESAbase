@@ -260,7 +260,7 @@ contains
       r_bCZ = -1d99
       m_bCZ = -1d99
       do i = max_eps_h_k, 2, -1
-         if ((s% gradr(i) < s% gradr(i - 1)) .and. (s% gradr(i - 1) > s% grada(i - 1))) then  ! botCZ between i and i-1
+         if ((s% gradr(i) < s% grada(i)) .and. (s% gradr(i - 1) > s% grada(i - 1)) .and. (s% xa(s% net_iso(ih1),i) > 0.5)) then  ! botCZ between i and i-1
             alfa = (s% gradr(i) - s% grada(i)) / ((s% gradr(i) - s% grada(i)) - (s% gradr(i - 1) - s% grada(i - 1)))
             beta = 1 - alfa
             r_bCZ = (beta * s% r(i) + alfa * s% r(i - 1)) / rsun
