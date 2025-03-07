@@ -263,7 +263,7 @@ contains
          if ((s% gradr(i) < s% grada(i)) .and. (s% gradr(i - 1) > s% grada(i - 1)) .and. (s% xa(s% net_iso(ih1),i) > 0.5)) then  ! botCZ between i and i-1
             alfa = (s% gradr(i) - s% grada(i)) / ((s% gradr(i) - s% grada(i)) - (s% gradr(i - 1) - s% grada(i - 1)))
             beta = 1 - alfa
-            r_bCZ = (beta * s% r(i) + alfa * s% r(i - 1)) / rsun
+            r_bCZ = (beta * s% r(i)**3 + alfa * s% r(i - 1)**3)**(1d0/3d0) / rsun
             m_bCZ = (beta * s% m(i) + alfa * s% m(i - 1)) / msun
             exit
          end if
@@ -936,7 +936,7 @@ contains
          end if
          beta = 1d0 - alfa
          ! r1 and r2 are reversed compared to Pincon 2019 (using Takata r1 and r2 here).
-         r_1 = beta * s% r(k_P) + alfa * s% r(k_P - 1)
+         r_1 = (beta * s% r(k_P)**3 + alfa * s% r(k_P - 1)**3)**(1d0/3d0)
          m_1 = beta * s% m(k_P) + alfa * s% m(k_P - 1)
       end if
 
@@ -944,7 +944,7 @@ contains
          alfa = s% xtra5_array(k_Q) / (s% xtra5_array(k_Q) - s% xtra5_array(k_Q - 1))
          beta = 1d0 - alfa
          ! r1 and r2 are reversed compared to Pincon 2019 (using Takata r1 and r2 here).
-         r_2 = beta * s% r(k_Q) + alfa * s% r(k_Q - 1)
+         r_2 = (beta * s% r(k_Q)**3 + alfa * s% r(k_Q - 1)**3)**(1d0/3d0)
          m_2 = beta * s% m(k_Q) + alfa * s% m(k_Q - 1)
       end if
 

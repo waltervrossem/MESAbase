@@ -6,6 +6,7 @@ log_dt
 star_mass
 star_age
 photosphere_r
+radius ! Need for kipp relr
 luminosity
 effective_T
 
