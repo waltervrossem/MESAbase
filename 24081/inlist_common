@@ -41,7 +41,8 @@
     photo_interval = 500
     photo_digits = 5
     max_num_profile_models = 300
-
+    mixing_D_limit_for_log = 1d2
+    
     write_pulse_data_with_profile = .true.
     pulse_data_format = 'GYRE'
 
@@ -77,6 +78,7 @@
     ! For IGW mixing
     use_other_D_mix = .true.
     x_ctrl(15) = -1d0  ! IGW exponent
+    x_ctrl(16) = 1d2  ! IGW D_ext
     min_D_mix = 1d2
 
     overshoot_scheme(1) = 'exponential'

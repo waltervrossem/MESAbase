@@ -58,6 +58,7 @@ module run_star_extras
    integer, parameter :: i_save_min_logHec = 12
 
    integer, parameter :: i_IGW_exponent = 15
+   integer, parameter :: i_IGW_D_ext = 16
 
    ! s% x_integer_ctrl
    integer, parameter :: i_num_deltanu_for_q = 1
@@ -2281,11 +2282,11 @@ contains
          !------- Determining position where to switch to IGW profile -------
          ! Going from core towards the surface of the star/model, check when Dmix <= s% min_D_mix
          ! and store the index at this position to be used for rescaling of the y-axis below
-         D_ext = s% min_D_mix
+         D_ext = s% x_ctrl(i_IGW_D_ext)
          D_ext = D_ext * f_IGW
 
          if (s% center_h1 < 1d-9) then  ! Lower IGW mixing intensity during CHeB, avoids breathing pulses
-            D_ext = s% min_D_mix * 0.2d0
+            D_ext = s% x_ctrl(i_IGW_D_ext) * 0.2d0
          end if
 
          do k = s% nz, 1, -1
