@@ -8,11 +8,14 @@ from wsssss.inlists import inlists as inl
 
 grid_name = 'grid'
 grid = cg.MesaGrid(add_base_workdir=True, inlists_index=4)
+
+mixture_inlist = 'inlist_a09'
+
 grid.add_dir('src')
 grid.add_file('history_columns.list')
 grid.add_file('profile_columns.list')
-
-mixture_inlist = 'inlist_a09'
+grid.add_file('inlist_common')
+grid.add_file(mixture_inlist)
 
 grid.inlist['star_job']['read_extra_star_job_inlist(1)'] = True
 grid.inlist['star_job']['extra_star_job_inlist_name(1)'] = 'inlist_common'
@@ -34,7 +37,6 @@ grid.add_dir('rates_tables')
 grid.add_file('rate_list.txt')
 
 # Add custom options here:
-
 
 grid.create_grid(grid_name)
 os.system(f'cp {__file__} {grid_name}/')
