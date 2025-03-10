@@ -32,10 +32,7 @@ module run_star_extras
    implicit none
 
    ! s% xtra
-   integer, parameter :: i_max_dq = 1
-   integer, parameter :: i_mesh_delta_coeff = 2
-   integer, parameter :: i_varcontrol_target = 3
-   integer, parameter :: i_convective_bdy_weight = 4
+   integer, parameter :: i_min_D_mix = 1
 
    ! s% lxtra
    integer, parameter :: i_use_dedt = 1
@@ -110,18 +107,6 @@ contains
       s% other_adjust_mlt_gradT_fraction => other_adjust_mlt_gradT_fraction_Peclet
       s% other_overshooting_scheme => extended_convective_penetration
 
-      ! Remember these quantities for after early PMS
-      s% xtra(i_max_dq) = s% max_dq
-      s% xtra(i_mesh_delta_coeff) = s% mesh_delta_coeff
-      s% xtra(i_varcontrol_target) = s% varcontrol_target
-      s% xtra(i_convective_bdy_weight) = s% convective_bdy_weight
-      if ((s% star_age < 1d5) .and. (s% center_h1 > 0.6)) then  ! Only do for PMS
-         s% max_dq = 1d-2
-         s% mesh_delta_coeff = 2.0
-         s% varcontrol_target = 1d-3
-         s% convective_bdy_weight = 0
-      end if
-
       ! To get through the helium flash turn off these options if they are used.
       s% lxtra(i_use_dedt) = (s% energy_eqn_option == 'dedt')
       s% lxtra(i_use_conv_premix) = s% do_conv_premix
@@ -149,16 +134,6 @@ contains
       call star_ptr(id, s, ierr)
       if (ierr /= 0) return
       extras_start_step = 0
-
-      ! Reset back to inlist values
-      if (s% star_age > 5d4) then
-         s% max_dq = s% xtra(i_max_dq)
-         s% mesh_delta_coeff = s% xtra(i_mesh_delta_coeff)
-         s% varcontrol_target = s% xtra(i_varcontrol_target)
-      end if
-      if (s% star_age > 1d5) then
-         s% convective_bdy_weight = s% xtra(i_convective_bdy_weight)
-      end if
    end function extras_start_step
 
 
@@ -174,7 +149,7 @@ contains
 
       ! To get through the helium flash if using the dedt energy eqn,
       ! turn off dedt form of energy eqn if the time step becomes too small
-      s% lxtra(1:3) = .true.
+
       if (s% power_he_burn > 3d8) then
          if (s% lxtra(i_use_dedt)) then
             write(*, *) 'dedt off', s% model_number
