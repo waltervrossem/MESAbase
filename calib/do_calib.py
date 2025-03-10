@@ -179,7 +179,7 @@ def do_run(x, _counter=[0]):
             raise ValueError(f'Incorrect termination code: {term_code}')
 
     hist = ld.History(f'LOGS/history_{_counter[0]:03}.data', verbose=False)
-    os.system(f'cp photos/x{hist.data.model_number[-1]%1000:03} photos/final{_counter[0]:03}')
+    os.system(f'cp photos/x{hist.data.model_number[-1]%1000:05} photos/final{_counter[0]:03}')
     mask = hist.data.star_age >= min_age
     mask[max(0, np.where(mask)[0][0] - 1)] = True  # Add one point before min_age to avoid bounds_error in interpolation
 
