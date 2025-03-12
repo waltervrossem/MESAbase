@@ -56,6 +56,7 @@ module run_star_extras
 
    integer, parameter :: i_IGW_exponent = 15
    integer, parameter :: i_IGW_D_ext = 16
+   integer, parameter :: i_IGW_D_ext_postMS = 17
 
    ! s% x_integer_ctrl
    integer, parameter :: i_num_deltanu_for_q = 1
@@ -112,6 +113,7 @@ contains
       s% lxtra(i_use_conv_premix) = s% do_conv_premix
       s% lxtra(i_use_gold_tolerances) = s% use_gold_tolerances
 
+      s% xtra(i_min_D_mix) = s% min_D_mix
    end subroutine extras_controls
 
 
@@ -134,6 +136,12 @@ contains
       call star_ptr(id, s, ierr)
       if (ierr /= 0) return
       extras_start_step = 0
+
+      if (s% center_h1 < 1d-9) then  ! Switch to lower minDmix after MS
+         s% min_D_mix = s%xtra(i_min_D_mix) * 0.2d0
+      else
+         s% min_D_mix = s%xtra(i_min_D_mix)
+      end if
    end function extras_start_step
 
 
@@ -694,7 +702,7 @@ contains
             nz_skip = min(k_P, k_Q)
          endif
          nz = min(s% nz - extra_pts, nz + extra_pts)
-         nz_skip = nz_skip - extra_pts
+         nz_skip = max(1, nz_skip - extra_pts)
          do k = nz_skip, nz
             if (s% brunt_N2(k) > 0d0) then
                nz_skip = k + 5  ! Don't smooth conv boundary
@@ -2257,12 +2265,13 @@ contains
          !------- Determining position where to switch to IGW profile -------
          ! Going from core towards the surface of the star/model, check when Dmix <= s% min_D_mix
          ! and store the index at this position to be used for rescaling of the y-axis below
-         D_ext = s% x_ctrl(i_IGW_D_ext)
-         D_ext = D_ext * f_IGW
 
          if (s% center_h1 < 1d-9) then  ! Lower IGW mixing intensity during CHeB, avoids breathing pulses
-            D_ext = s% x_ctrl(i_IGW_D_ext) * 0.2d0
+            D_ext = s% x_ctrl(i_IGW_D_ext_postMS)
+         else
+            D_ext = s% x_ctrl(i_IGW_D_ext)
          end if
+         D_ext = D_ext * f_IGW
 
          do k = s% nz, 1, -1
              if (s% D_mix(k) <= D_ext) then
@@ -2354,7 +2363,7 @@ contains
    logical  :: outward
    integer  :: dk, k, k_ob
    real(dp) :: r, dr, r_step
-   real(dp) :: Ymin, Ymax, f_aovhe
+   real(dp) :: Ymin, Ymax, f_aovhe, L_He_full_on, L_He_full_off, f_flash
 
    ! Evaluate the overshoot diffusion coefficient D(k_a:k_b) and
    ! mixing velocity vc(k_a:k_b) at the i'th convective boundary,
@@ -2383,19 +2392,24 @@ contains
       return
    end if
 
-   ! Grow convective core as He depletes
+   ! Grow convective core as He depletes and turn off if flash
    if (s% x_logical_ctrl(i_grow_aovhe)) then
       if (s% overshoot_zone_type(j) == 'burn_He') then
          if (s% overshoot_zone_loc(j) == 'core') then
             if (s% overshoot_bdy_loc(j) == 'top') then
+               ! Turn off IGW mixing during He flash
+               L_He_full_on = 7d0
+               L_He_full_off = 8d0
+               f_flash = min(1d0, max(0d0, (L_He_full_on - log10(s% power_he_burn))/(L_He_full_off - L_He_full_on)))
+
                Ymin = 0.2d0
                Ymax = 0.9d0
                f_aovhe = (Ymax - s% center_he4) / (Ymax - Ymin)
                f_aovhe = max(f_aovhe, 0d0)
                f_aovhe = min(f_aovhe, 1d0)
-               f = f * f_aovhe
-               f0 = f0 * f_aovhe
-               f2 = f2 * f_aovhe
+               f = f * f_aovhe * f_flash
+               f0 = f0 * f_aovhe * f_flash
+               f2 = f2 * f_aovhe * f_flash
             end if
          end if
       end if

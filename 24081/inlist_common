@@ -1,8 +1,14 @@
 &star_job
+    show_net_species_info = .true.
     relax_tau_factor = .true.
     relax_to_this_tau_factor = 1d-3
+
     create_pre_main_sequence_model = .true.
-    pre_ms_relax_num_steps = 100
+    pre_ms_T_c = 5d5
+
+    set_initial_dt = .true.
+    years_for_initial_dt = 1d3
+
     change_net = .true.
     new_net_name = 'pp_and_cno_extras.net'
     profile_columns_file = 'profile_columns.list'
@@ -70,16 +76,20 @@
     conv_premix_avoid_increase = .true.
     min_convective_gap = 0.05d0
 
-    thermohaline_option = 'Brown_Garaud_Stellmach_13'
-    thermohaline_coeff = 1d0
-    min_thermohaline_gap = 0.05d0
-    min_thermohaline_dropout = 0.1d0
+!    thermohaline_option = 'Brown_Garaud_Stellmach_13'
+!    thermohaline_coeff = 1d0
+!    min_thermohaline_gap = 0.1d0
+!    min_thermohaline_dropout = 0.1d0
 
     ! For IGW mixing
     use_other_D_mix = .true.
     x_ctrl(15) = -1d0  ! IGW exponent
     x_ctrl(16) = 1d2  ! IGW D_ext
+    x_ctrl(17) = 2d1 ! IGW D_ext post-MS
+
+    set_min_D_mix = .true.
     min_D_mix = 1d2
+    mixing_D_limit_for_log = 1d2
 
     overshoot_scheme(1) = 'exponential'
     overshoot_zone_type(1) = 'nonburn'
