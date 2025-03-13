@@ -6,11 +6,11 @@
     kap_file_prefix = 'a09'
     kap_lowT_prefix = 'lowT_fa05_a09p'
     kap_CO_prefix = 'a09_co'
-    Zbase = 0.015815
+    Zbase = 0.015843
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 1.977144
-    initial_y = 0.269057
-    initial_z = 0.015815
+    mixing_length_alpha = 1.976663
+    initial_y = 0.264848
+    initial_z = 0.015843
 / ! end of controls namelist
