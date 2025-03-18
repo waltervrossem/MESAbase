@@ -38,5 +38,6 @@ grid.add_file('rate_list.txt')
 
 # Add custom options here:
 
-grid.create_grid(grid_name)
-os.system(f'cp {__file__} {grid_name}/')
+if __name__ == "__main__":
+    grid.create_grid(grid_name)
+    os.system(f'cp {__file__} {grid_name}/')
