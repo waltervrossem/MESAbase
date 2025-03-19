@@ -2,6 +2,8 @@
 
 &star_job
     initial_zfracs = 3 ! gs98
+    change_net = .true.
+    new_net_name = 'pp_and_cno_extras.net'
 / ! end of star_job namelist
 
 &kap

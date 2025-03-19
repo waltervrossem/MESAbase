@@ -1,7 +1,7 @@
 &star_job
     initial_zfracs = 6 ! agss09
     change_net = .true.
-    new_net_name = 'pp_and_cno_extras.net'
+    new_net_name = 'mesa_49.net'
 / ! end of star_job namelist
 
 &kap
@@ -12,7 +12,7 @@
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 1.976663
-    initial_y = 0.264848
-    initial_z = 0.015843
+    mixing_length_alpha = 1.976288
+    initial_y = 0.264826
+    initial_z = 0.015840
 / ! end of controls namelist
