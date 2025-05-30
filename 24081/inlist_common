@@ -4,7 +4,7 @@
     relax_to_this_tau_factor = 1d-3
 
     create_pre_main_sequence_model = .true.
-    pre_ms_T_c = 5d5
+    pre_ms_T_c = 9d5
 
     set_initial_dt = .true.
     years_for_initial_dt = 1d3
@@ -81,15 +81,17 @@
 !    min_thermohaline_gap = 0.1d0
 !    min_thermohaline_dropout = 0.1d0
 
-    ! For IGW mixing
+
     use_other_D_mix = .true.
+
+    ! For IGW mixing
     x_ctrl(15) = -1d0  ! IGW exponent
     x_ctrl(16) = 1d2  ! IGW D_ext
     x_ctrl(17) = 2d1 ! IGW D_ext post-MS
-
-    set_min_D_mix = .true.
-    min_D_mix = 1d2
-    mixing_D_limit_for_log = 1d2
+    ! D_turb mixing: https://royalsocietypublishing.org/doi/pdf/10.1098/rsos.170192
+    x_ctrl(18) = 15d0  ! D_turb constant
+    x_ctrl(19) = 1.5d0  ! D_turb exponent
+    x_ctrl(20) = 6d0  ! D_turb reference temperature
 
     overshoot_scheme(1) = 'exponential'
     overshoot_zone_type(1) = 'nonburn'

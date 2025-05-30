@@ -1,3 +1,7 @@
+! solar_calib_agss09_24081_2025-05-30_121039
+! Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age
+! 18, 4.346146e+00, 3.075524e-06, 7.066104e-07, 2.037921, 0.264727, 0.016224, 5772.008955, 0.742604, 0.242287, 0.020345, 4.567300e+09
+
 &star_job
     initial_zfracs = 6 ! agss09
     change_net = .true.
@@ -8,11 +12,11 @@
     kap_file_prefix = 'a09'
     kap_lowT_prefix = 'lowT_fa05_a09p'
     kap_CO_prefix = 'a09_co'
-    Zbase = 0.015843
+    Zbase = 0.016224
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 1.976663
-    initial_y = 0.264848
-    initial_z = 0.015843
+    mixing_length_alpha = 2.037921
+    initial_y = 0.264727
+    initial_z = 0.016224
 / ! end of controls namelist

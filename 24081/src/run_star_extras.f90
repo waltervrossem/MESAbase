@@ -58,6 +58,10 @@ module run_star_extras
    integer, parameter :: i_IGW_D_ext = 16
    integer, parameter :: i_IGW_D_ext_postMS = 17
 
+   integer, parameter :: i_turb_constant = 18
+   integer, parameter :: i_turb_exponent = 19
+   integer, parameter :: i_turb_reference = 20
+
    ! s% x_integer_ctrl
    integer, parameter :: i_num_deltanu_for_q = 1
 
@@ -104,7 +108,7 @@ contains
       s% how_many_extra_profile_header_items => how_many_extra_profile_header_items
       s% data_for_extra_profile_header_items => data_for_extra_profile_header_items
 
-      s% other_D_mix => IGW_D_mix_rho
+      s% other_D_mix => turbulent_mixing
       s% other_adjust_mlt_gradT_fraction => other_adjust_mlt_gradT_fraction_Peclet
       s% other_overshooting_scheme => extended_convective_penetration
 
@@ -2230,6 +2234,47 @@ contains
       end if
 
    end subroutine pen_overshoot
+
+   subroutine turbulent_mixing(id, ierr)
+      integer, intent(in) :: id
+      integer, intent(out) :: ierr
+      type (star_info), pointer :: s
+
+      real(dp) :: f_turb, n_turb, T_turb, new_Dmix, DHe_0, Rho_0
+      real(dp) :: alfa, beta
+      integer :: k
+
+      call star_ptr(id, s, ierr)
+      if (ierr /= 0) return
+
+      f_turb = s% x_ctrl(i_turb_constant)
+      n_turb = s% x_ctrl(i_turb_exponent)
+      T_turb = s% x_ctrl(i_turb_reference)
+
+      f_turb = 400d0
+      n_turb = -3
+      T_turb = 1d6
+
+      do k = 1, s% nz
+         if (s% lnT(k) > log(T_turb)) then
+            exit
+         end if
+      end do
+      alfa = (s% lnT(k) - log(T_turb)) / (s% lnT(k) - s% lnT(k - 1))
+      beta = 1d0 - alfa
+      Rho_0 = (beta * s% Rho(k) + alfa * s% Rho(k - 1))
+
+      DHe_0 = (3.3d-15 * T_turb**2.5d0) / (4d0 * Rho_0 * log(1 + 1.125d-16 * T_turb**3 * Rho_0))
+
+      do k = 1, s% nz
+         new_Dmix = f_turb * DHe_0 * (s% Rho(k)/Rho_0)**n_turb
+         if (new_Dmix > s% D_mix(k)) then
+            s% D_mix(k) = new_Dmix
+            s% mixing_type(k) = anonymous_mixing
+         end if
+      end do
+
+   end subroutine turbulent_mixing
 
    ! Michielsen 2023
    subroutine IGW_D_mix_rho(id, ierr)

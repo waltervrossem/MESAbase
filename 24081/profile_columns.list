@@ -1,6 +1,7 @@
 zone
 mass
 radius
+logtau
 
 logT
 logRho
