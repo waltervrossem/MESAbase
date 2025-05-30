@@ -32,3 +32,6 @@
 *.app
 
 .idea
+
+# calibration runs
+calib/solar_calib*
