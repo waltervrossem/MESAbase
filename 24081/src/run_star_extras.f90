@@ -2268,9 +2268,10 @@ contains
 
       do k = 1, s% nz
          new_Dmix = f_turb * DHe_0 * (s% Rho(k)/Rho_0)**n_turb
+         new_Dmix = min(new_Dmix, 1d10)  ! Upper limit for numerical stability if using relax_tau_factor
          if (new_Dmix > s% D_mix(k)) then
             s% D_mix(k) = new_Dmix
-            s% mixing_type(k) = anonymous_mixing
+            s% mixing_type(k) = minimum_mixing
          end if
       end do
 
