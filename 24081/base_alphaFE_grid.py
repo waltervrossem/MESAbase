@@ -55,6 +55,8 @@ grid.kap['user_kap_lowT_Zs'] = 0.000e0, 0.0001e0, 0.0003e0, 0.001e0, 0.002e0, 0.
 grid.kap['user_num_kap_lowT_Xs_for_this_Z'] = 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9, 9, 8
 aFe_avail = np.linspace(-0.2, 0.6, 5)
 aFe_avail_lowT = np.linspace(-0.2, 0.6, 9)
+
+
 def inlist_finalize_function(unpacked_inlist):
     eos_file_prefix = 'mesa'
     aFe = unpacked_inlist['controls'][f'{non_mesa_key_start}_aFe']
@@ -66,6 +68,8 @@ def inlist_finalize_function(unpacked_inlist):
     return unpacked_inlist
 
 # Add custom options here:
+# e.g.
+# grid.controls['initial_mass] = [1, 2]
 
 if __name__ == "__main__":
     grid.create_grid(grid_name)

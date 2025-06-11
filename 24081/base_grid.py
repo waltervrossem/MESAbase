@@ -37,6 +37,8 @@ grid.add_dir('rates_tables')
 grid.add_file('rate_list.txt')
 
 # Add custom options here:
+# e.g.
+# grid.controls['initial_mass] = [1, 2]
 
 if __name__ == "__main__":
     grid.create_grid(grid_name)
