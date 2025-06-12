@@ -1,4 +1,6 @@
-!Created using wsssss.create_grid module.
+! solar_calib_mb22_24081_157493
+! Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age
+! 16, 6.046985e-01, 1.352567e-06,-3.070060e-06, 2.015258, 0.268230, 0.018713, 5772.028325, 0.736293, 0.246239, 0.023725, 4.567300e+09
 
 &star_job
     initial_zfracs = 9 ! mb22
@@ -10,11 +12,11 @@
     kap_file_prefix = 'oplib_mb22'
     kap_lowT_prefix = 'lowT_fa05_mb22'
     kap_CO_prefix = 'gs98_co'  ! use gs98 as it has most similar Z/X for type 2
-    Zbase = 0.018945
+    Zbase = 0.018713
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 2.023130
-    initial_y = 0.269553
+    mixing_length_alpha = 2.015258
+    initial_y = 0.018713
     initial_z = 0.018945
 / ! end of controls namelist

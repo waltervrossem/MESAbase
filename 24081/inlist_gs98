@@ -1,4 +1,6 @@
-!Created using wsssss.create_grid module.
+! solar_calib_gs98_24081_157492
+! Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age
+!  8, 1.323757e-01, 5.427261e-07, 5.948016e-06, 2.019686, 0.270115, 0.018860, 5771.965707, 0.734633, 0.247764, 0.023962, 4.567300e+09
 
 &star_job
     initial_zfracs = 3 ! gs98
@@ -10,11 +12,11 @@
     kap_file_prefix = 'gs98'
     kap_lowT_prefix = 'lowT_fa05_gs98'
     kap_CO_prefix = 'gs98_co'
-    Zbase = 0.018866
+    Zbase = 0.018860
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 1.983412
-    initial_y = 0.272480
-    initial_z = 0.018866
+    mixing_length_alpha = 2.019686
+    initial_y = 0.270115
+    initial_z = 0.018860
 / ! end of controls namelist
