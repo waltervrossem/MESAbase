@@ -2251,10 +2251,6 @@ contains
       n_turb = s% x_ctrl(i_turb_exponent)
       T_turb = s% x_ctrl(i_turb_reference)
 
-      f_turb = 400d0
-      n_turb = -3
-      T_turb = 1d6
-
       do k = 1, s% nz
          if (s% lnT(k) > log(T_turb)) then
             exit
@@ -2262,14 +2258,14 @@ contains
       end do
       alfa = (s% lnT(k) - log(T_turb)) / (s% lnT(k) - s% lnT(k - 1))
       beta = 1d0 - alfa
-      Rho_0 = (beta * s% Rho(k) + alfa * s% Rho(k - 1))
 
+      Rho_0 = (beta * s% Rho(k) + alfa * s% Rho(k - 1))
       DHe_0 = (3.3d-15 * T_turb**2.5d0) / (4d0 * Rho_0 * log(1 + 1.125d-16 * T_turb**3 * Rho_0))
 
       do k = 1, s% nz
          new_Dmix = f_turb * DHe_0 * (s% Rho(k)/Rho_0)**n_turb
          new_Dmix = min(new_Dmix, 1d10)  ! Upper limit for numerical stability if using relax_tau_factor
-         if (new_Dmix > s% D_mix(k)) then
+         if ((new_Dmix > s% D_mix(k)) .and. (new_Dmix > 1d-3)) then
             s% D_mix(k) = new_Dmix
             s% mixing_type(k) = minimum_mixing
          end if
