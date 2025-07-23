@@ -1,6 +1,6 @@
-! solar_calib_gs98_24081_157492
+! solar_calib_gs98_24081_2025-07-23_125222
 ! Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age
-!  8, 1.323757e-01, 5.427261e-07, 5.948016e-06, 2.019686, 0.270115, 0.018860, 5771.965707, 0.734633, 0.247764, 0.023962, 4.567300e+09
+! 18, 5.125038e-02,-1.240666e-06, 3.541445e-07, 1.973564, 0.270908, 0.018576, 5771.996954, 0.734659, 0.248030, 0.023564, 4.567300e+09
 
 &star_job
     initial_zfracs = 3 ! gs98
@@ -12,11 +12,11 @@
     kap_file_prefix = 'gs98'
     kap_lowT_prefix = 'lowT_fa05_gs98'
     kap_CO_prefix = 'gs98_co'
-    Zbase = 0.018860
+    Zbase = 0.018576
 / ! end of kap namelist
 
 &controls
-    mixing_length_alpha = 2.019686
-    initial_y = 0.270115
-    initial_z = 0.018860
+    mixing_length_alpha = 1.973564
+    initial_y = 0.270908
+    initial_z = 0.018576
 / ! end of controls namelist
