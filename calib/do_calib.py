@@ -30,8 +30,8 @@ if solar_mixture not in ['agss09', 'mb22', 'gs98']:
 print(f'{solar_mixture=}')
 print(f'{version=}')
 
-_kap_file = {'agss09': 'agss09',
-             'mb22': 'mb22',
+_kap_file = {'agss09': 'a09',
+             'mb22': 'oplib_mb22',
              'gs98': 'gs98'}
 _kap_lowT = {'agss09': 'a09p',
              'mb22': 'mb22',
@@ -85,7 +85,7 @@ grid.add_file(f'{defaults}/rate_list.txt')
 
 # Add custom options here:
 grid.star_job['initial_zfracs'] = _initial_zfracs[solar_mixture]
-grid.kap['kap_file_prefix'] = f'oplib_{_kap_file[solar_mixture]}'
+grid.kap['kap_file_prefix'] = f'{_kap_file[solar_mixture]}'
 grid.kap['kap_lowT_prefix'] = f'lowT_fa05_{_kap_lowT[solar_mixture]}'
 grid.kap['kap_CO_prefix'] = f'{_kap_CO[solar_mixture]}_co'
 
@@ -221,9 +221,10 @@ def do_run(x, _counter=[0]):
         file_mode = 'a'
     else:
         file_mode = 'w'
+    column_names = 'Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age\n'
     with open(calib_fname, file_mode) as handle:
         if file_mode == 'w':  # Also write header
-            handle.write('Run, Cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, Age\n')
+            handle.write(column_names)
         handle.write(','.join([f'{int(_counter[0]): 3}, {cost: e}', f'{logL: e}', f'{logR: e}',
                                f'{a_MLT_ini: f}', f'{Y_ini: f}', f'{Z_ini: f}',
                                f'{Teff: f}', f'{X_surf: f}', f'{Y_surf: f}', f'{ZX_surf: f}', f'{best_age: e}']) + '\n')
@@ -269,6 +270,46 @@ with open(calib_fname, 'w') as handle:
             print(f'Y        = {Y_surf: f}')
             print(f'Z        = {X_surf * ZX_surf: f}')
             print(f'Z/X      = {ZX_surf: f}')
+
+# Write mixture specific inlist
+line = calib_dat[order][0]
+run, cost, logL, logR, a_mlt, Y_ini, Z_ini, Teff, X_surf, Y_surf, ZX_surf, best_age = line
+run = int(run)
+X_ini = 1 - Z_ini - Y_ini
+run_idx = order[i]
+
+s = (f'! {grid_name}\n'
+f'! {column_names}\n'
+f'! ')
+s += ','.join([f'{run: 3}', f'{cost: e}', f'{logL: e}', f'{logR: e}', f'{a_mlt: f}', f'{Y_ini: f}', f'{Z_ini: f}',
+                       f'{Teff: f}', f'{X_surf: f}', f'{Y_surf: f}', f'{ZX_surf: f}', f'{best_age: e}']) + '\n'
+s += '\n'
+s+= f'''
+&star_job
+    initial_zfracs = {_initial_zfracs[solar_mixture]} ! {solar_mixture}
+    change_net = .true.
+    new_net_name = 'pp_and_cno_extras.net'
+/ ! end of star_job namelist
+
+&kap
+    kap_file_prefix = '{_kap_file[solar_mixture]}'
+    kap_lowT_prefix = 'lowT_fa05_{_kap_lowT[solar_mixture]}'
+    kap_CO_prefix = '{_kap_CO[solar_mixture]}_co'
+    Zbase = {Z_ini}
+
+/ ! end of kap namelist
+
+&controls
+    mixing_length_alpha = {a_mlt}
+    initial_y = {Y_ini}
+    initial_z = {Z_ini}
+/ ! end of controls namelist
+'''
+inlist_name = 'inlist_' + {'agss09': 'a09',
+               'gs98': 'gs98',
+               'mb22': 'mb22'}[solar_mixture]
+with open(os.path.abspath(f'{run_dir}/../{inlist_name}'), 'w') as handle:
+    handle.write(s)
 
 # Do full run at end
 Z_ini = calib_dat[order][0][6]
