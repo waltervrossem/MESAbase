@@ -70,6 +70,7 @@ def inlist_finalize_function(unpacked_inlist):
 # Add custom options here:
 # e.g.
 # grid.controls['initial_mass] = [1, 2]
+grid.controls[f'{non_mesa_key_start}_aFe'] = 0.0  # [alpha/Fe] to use for grid
 
 if __name__ == "__main__":
     grid.create_grid(grid_name)
