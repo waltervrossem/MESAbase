@@ -47,7 +47,7 @@
     photo_interval = 500
     photo_digits = 5
     max_num_profile_models = 300
-    mixing_D_limit_for_log = 1d2
+    mixing_D_limit_for_log = 1d-2  ! https://iopscience.iop.org/article/10.3847/2515-5172/adf06d
     
     write_pulse_data_with_profile = .true.
     pulse_data_format = 'GYRE'
